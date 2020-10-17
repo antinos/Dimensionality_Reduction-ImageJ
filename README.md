@@ -53,7 +53,7 @@ With a label file specified, this plot is produced:</br>
 ## Using the plugin on non-image data
 So images are just ordered arrays of data, therefore it makes sense that these dimensionality reduction techniques can be applied to any non-image data just as well as on images. For convenience, but also because it is an inherently nice way to handle data, to run the plugin on non-image data I recommend encoding that data (e.g. numerical results table/ microarray/ RNA-seq/ or whatever) in an ImageJ image-stack before calling the plugin as usual.
 
-To get you started a convenience function 'Results to Stack' is also included with the plugin, which can be called via the GUI interface:</br>
+To get you started, a convenience function, 'Results to Stack', is also included with the plugin. It can be called via the GUI interface:</br>
 <img src="https://aws1.discourse-cdn.com/business4/uploads/imagej/original/3X/8/6/863e6bd488ea6d930ab9acc9d12915c6faba7eb8.png" width="352">
 
 Or by macro:
