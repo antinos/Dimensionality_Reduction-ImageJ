@@ -63,7 +63,7 @@ run("Results to Stack");
 ```
 Which pulls ONLY NUMERICAL data from an ImageJ results table to build an N stack of nx1 images, where N is the number of samples (stacks) and n is the number of dimensions. Maybe counter-intuitively, the table should be ordered with rows as dimensions and columns as samples.
 
-**As an example**, adding RNA-seq data of 837 single-cells from the GTEx project [GSE45878](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE45878) describing the expression of 22704 genes (I may have trimmed the original set a lttle) you can generate this very odd image stack:</br>
+**As an example**, adding RNA-seq data of 837 single-cells from the GTEx project [GSE45878](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE45878) describing the expression of 22704 genes (I may have trimmed the original set a little) you can generate this very odd image stack:</br>
 <img src="https://aws1.discourse-cdn.com/business4/uploads/imagej/original/3X/1/2/122a7d9f889d1b0511b89909720bb4753d485224.png" width="690">
 
 From which you can plot the following (example using UMAP):</br>
@@ -100,7 +100,7 @@ Some of the other plugin parameters I haven't mentioned include:
 ---
 Future ideas for extending the functions of the 'Dimensionality Reduction' plugin:
 * Allow more than 2 output dimensions
-    * Many of the underlying libraries already allow for this, so the ImageJ implementation just needs to be considered and effected
+    * Many of the underlying libraries already allow for this, so the ImageJ implementation just needs to be considered
 * Allow the user to specify an output dimension (e.g. principal component 3/4/5 etc)
 * Allow low dimensional datapoints to be related to their original position/label, on an individual basis
     * Ideally, this could be achieved in an interactive manner, such that the user could specify points on the 2D output plot that are then correspondingly highlighted in the original matrix/results table/stack of images
