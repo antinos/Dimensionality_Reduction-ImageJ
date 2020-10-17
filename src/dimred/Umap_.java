@@ -5,15 +5,8 @@ import ij.gui.Plot;
 import ij.io.DirectoryChooser;
 import ij.plugin.PlugIn;
 import ij.process.ImageProcessor;
-import com.jujutsu.tsne.TSneConfiguration;
-import com.jujutsu.tsne.barneshut.BHTSne;
-import com.jujutsu.tsne.barneshut.BarnesHutTSne;
-import com.jujutsu.tsne.barneshut.ParallelBHTsne;
-import com.jujutsu.utils.MatrixOps;
 import com.jujutsu.utils.MatrixUtils;
-import com.jujutsu.utils.TSneUtils;
 import tagbio.umap.Umap;
-
 import java.awt.Color;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
@@ -27,7 +20,6 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Random;
-
 import javax.swing.JOptionPane;
 
 /**version 1.0.0*/
@@ -226,7 +218,7 @@ public class Umap_ implements PlugIn {
         }
         
         
-    	//If the outputCSV toggle is set, output the tSNE result to the users desktop
+    	//If the outputCSV toggle is set, output the UMAP result to the users desktop
         if (outputCSV) {
         	try {
         		toCSV(Y, Filelist);
@@ -317,27 +309,7 @@ public class Umap_ implements PlugIn {
     		//IJ.log("File list: "+Arrays.toString(Filelist));
     	}
     }
-    
-    public double[][] tSNE_reduction(double inputArray[][], int initial_dims, double perplexity, int max_iterations) {
 
-        IJ.log(MatrixOps.doubleArrayToPrintString(inputArray, ", ", 50,10));
-        
-        BarnesHutTSne tsne;
-        boolean parallel = false;
-    	if(parallel) {			
-    		tsne = new ParallelBHTsne();
-    	} else {
-    		tsne = new BHTSne();
-    	}
-    	
-    	TSneConfiguration config = TSneUtils.buildConfig(inputArray, 2, initial_dims, perplexity, 1000);
-    	double [][] Y = tsne.tsne(config);
-    	
-    	return Y;
-    }
-    
-    
-    
     /*
      * https://stackoverflow.com/questions/34958829/how-to-save-a-2d-array-into-a-text-file-with-bufferedwriter
      */
