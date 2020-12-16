@@ -23,7 +23,7 @@ import ij.process.ImageProcessor;
 import com.jujutsu.tsne.PrincipalComponentAnalysis;
 import com.jujutsu.utils.MatrixUtils;
 
-/**version 1.0.0*/
+/**version 1.0.1*/
 
 public class Pca_ implements PlugIn {
 	//top level initialisation
@@ -57,7 +57,7 @@ public class Pca_ implements PlugIn {
         debugOptions = "label_path=[C:/Users/Anthony/Desktop/mnist_labels.csv]";
         new Pca_().run("");
         //debugOptions = "label_path=[C:/Users/Anthony/Desktop/NumbersIndex.csv]";
-        //new Pca_().run("");
+        //new PCA_().run("");
 	} //NOTE, pca is currently outputing vectors with 784 datapoints..
 	
 	public void run(String arg) {
@@ -121,7 +121,7 @@ public class Pca_ implements PlugIn {
 		                }
 	            }
 	        }
-	        //specify a folder to perform PCA on
+	        //specify a folder to perform tSNE on
 	        else if (inputFolderPath.isEmpty() && debugArray == null) {
 	        DirectoryChooser dc = new DirectoryChooser("Select a folder");
 	        inputFolderPath = dc.getDirectory();
@@ -413,6 +413,12 @@ public class Pca_ implements PlugIn {
         
         // Output eigenvector
         eigen_out = Integer.parseInt(Macro.getValue(optionsStr, "eigen_out", "-1"));
+
+        // Get the perplexity value or use the default.
+        // perplexity = Double.parseDouble(Macro.getValue(optionsStr, "perplexity", ""));
+        
+        // Get the maximum iterations for tSNE error approximation of use the default.
+        //max_iterations = Integer.parseInt(Macro.getValue(optionsStr, "max_iterations ", "1000"));
         
         // See if a CSV output is requested.
         //outputCSV = optionsStr.contains("output_csv");

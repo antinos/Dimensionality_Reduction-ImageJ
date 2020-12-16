@@ -29,7 +29,7 @@ import java.util.Random;
 
 import javax.swing.JOptionPane;
 
-/**version 1.0.0*/
+/**version 1.0.1*/
 
 /*
  * tSNE java implementation from https://github.com/lejon/T-SNE-Java

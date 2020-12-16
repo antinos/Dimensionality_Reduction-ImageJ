@@ -1,10 +1,12 @@
-# Dimensionality Reduction (v1.0.0)
-*version release date:16/10/20*
+# Dimensionality Reduction (v1.0.1)
+*version release date:16/12/20*</br>
 
 This plugin captures data from an open image stack or folder of images and performs one of three dimensionality reduction techniques (PCA, t-SNE, or UMAP) to project the high-dimensional data into a lower dimensional (2D) space that is then plotted onto an ImageJ scatter-plot. Under-the-hood, the plugin uses two really-awesome libraries (t-SNE: Leif Jonsson's [pure Java implementation of Van Der Maaten and Hinton's t-sne clustering algorithm](https://github.com/lejon/T-SNE-Java); and UMAP: Jesse Paquette's (of [tag.bio](https://tag.bio/)) [Java implementation of UMAP](https://github.com/tag-bio/umap-java), based on the reference [Python implementation](https://github.com/lmcinnes/umap)). Both are distributed under open-source licences, so even if this plugin doesn't suit you, perhaps their libraries can find a place in your respective projects!
 
 ---
 ## Using the 'Dimensionality Reduction' plugin on an image stack or folder of images
+
+**NEW: [Youtube tutorial](https://www.youtube.com/watch?v=p90ZYCsKdtw)**
 
 The plugin can be called from a GUI dropdown 'Plugins>Dimensionality Reduction>...'</br>
 <img src="https://aws1.discourse-cdn.com/business4/uploads/imagej/original/3X/0/1/01079646466f8060ba6597766c99df4c65d747a2.png" width="352">
@@ -53,7 +55,7 @@ With a label file specified, this plot is produced:</br>
 ## Using the plugin on non-image data
 So images are just ordered arrays of data, therefore it makes sense that these dimensionality reduction techniques can be applied to any non-image data just as well as on images. For convenience, but also because it is an inherently nice way to handle data, to run the plugin on non-image data I recommend encoding that data (e.g. numerical results table/ microarray/ RNA-seq/ or whatever) in an ImageJ image-stack before calling the plugin as usual.
 
-To get you started, a convenience function, 'Results to Stack', is also included with the plugin. It can be called via the GUI interface:</br>
+To get you started a convenience function 'Results to Stack' is also included with the plugin, which can be called via the GUI interface:</br>
 <img src="https://aws1.discourse-cdn.com/business4/uploads/imagej/original/3X/8/6/863e6bd488ea6d930ab9acc9d12915c6faba7eb8.png" width="352">
 
 Or by macro:
@@ -63,7 +65,9 @@ run("Results to Stack");
 ```
 Which pulls ONLY NUMERICAL data from an ImageJ results table to build an N stack of nx1 images, where N is the number of samples (stacks) and n is the number of dimensions. Maybe counter-intuitively, the table should be ordered with rows as dimensions and columns as samples.
 
-**As an example**, adding RNA-seq data of 837 single-cells from the GTEx project [GSE45878](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE45878) describing the expression of 22704 genes (I may have trimmed the original set a little) you can generate this very odd image stack:</br>
+Another convenience feature is included 'Rows to Columns', which transposes the data in an open results table. Remember, the 'Dimensionality Reduction' plugin expects N entities to occupy different columns, instead of separate rows. The rows should be reserved for the separate features/dimension data.
+
+**As an example of the plugin applied to non-image data**, adding RNA-seq data of 837 single-cells from the GTEx project [GSE45878](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE45878) describing the expression of 22704 genes (I may have trimmed the original set a lttle) you can generate this very odd image stack:</br>
 <img src="https://aws1.discourse-cdn.com/business4/uploads/imagej/original/3X/1/2/122a7d9f889d1b0511b89909720bb4753d485224.png" width="690">
 
 From which you can plot the following (example using UMAP):</br>
@@ -100,7 +104,7 @@ Some of the other plugin parameters I haven't mentioned include:
 ---
 Future ideas for extending the functions of the 'Dimensionality Reduction' plugin:
 * Allow more than 2 output dimensions
-    * Many of the underlying libraries already allow for this, so the ImageJ implementation just needs to be considered
+    * Many of the underlying libraries already allow for this, so the ImageJ implementation just needs to be considered and effected
 * Allow the user to specify an output dimension (e.g. principal component 3/4/5 etc)
 * Allow low dimensional datapoints to be related to their original position/label, on an individual basis
     * Ideally, this could be achieved in an interactive manner, such that the user could specify points on the 2D output plot that are then correspondingly highlighted in the original matrix/results table/stack of images

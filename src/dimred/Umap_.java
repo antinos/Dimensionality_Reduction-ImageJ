@@ -20,9 +20,10 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Random;
+
 import javax.swing.JOptionPane;
 
-/**version 1.0.0*/
+/**version 1.0.1*/
 
 /**
  * uMAP java implementation from https://github.com/tag-bio/umap-java
