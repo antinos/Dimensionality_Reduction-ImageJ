@@ -23,8 +23,7 @@ import ij.process.ImageProcessor;
 import com.jujutsu.tsne.PrincipalComponentAnalysis;
 import com.jujutsu.utils.MatrixUtils;
 
-/**version 1.0.1*/
-
+/**version 1.0.2*/
 public class Pca_ implements PlugIn {
 	//top level initialisation
 	PrincipalComponentAnalysis pca = new PrincipalComponentAnalysis();
@@ -33,12 +32,16 @@ public class Pca_ implements PlugIn {
 	String[] Filelist;
 	String[] labelsArray;
 	int bitD;
+	int width;
+	int height;
 	
 	 // Options to use during the run. Defaults for some but otherwise populated when parseOptions() is called.
     private String inputFolderPath;
     private int pca_comp = 2; //was 2
     private String inputIndexPath; //show the plugin where sample labels are located.. used to colour the final output.
     private int eigen_out = -1; //eigenvector output from those computed
+    private int pcompX = 1;
+    private int pcompY = 2;
 	
     // Variables and main() method for testing in IDEs.
     private static String debugOptions = null;
@@ -58,11 +61,19 @@ public class Pca_ implements PlugIn {
         new Pca_().run("");
         //debugOptions = "label_path=[C:/Users/Anthony/Desktop/NumbersIndex.csv]";
         //new PCA_().run("");
-	} //NOTE, pca is currently outputing vectors with 784 datapoints..
+	}
 	
 	public void run(String arg) {
 		parseOptions();
 		processingStack = false;
+		
+		//Check that the requested principal components are within the to be computed range. If either or both are over, then increase the computed range.
+		if (pcompY > pca_comp) {
+			pca_comp = pcompY;
+		}
+		if (pcompX > pca_comp) {
+			pca_comp = pcompX;
+		}
 		 
 		 if (WindowManager.getCurrentImage() != null && (WindowManager.getCurrentImage()).isStack()) {
 			 int type = WindowManager.getCurrentImage().getType();
@@ -74,8 +85,8 @@ public class Pca_ implements PlugIn {
 	            		//Get bitDepth
 	            		bitD = stack.getBitDepth();
 	            	Filelist = new String[stack.getStackSize()];
-	            	int height = stack.getHeight();
-	            	int width = stack.getWidth();
+	            	height = stack.getHeight();
+	            	width = stack.getWidth();
 	            	imageMatrix = new double[stack.getStackSize()][width*height]; //2D array to hold all stack image data [slice number][1D array of all pixels in the slice image]
 	            	for (int s = 0; s < stack.getStackSize(); s++) {
 	            		Filelist[s] = Integer.toString(s+1);
@@ -87,7 +98,7 @@ public class Pca_ implements PlugIn {
 	                			if (type == ImagePlus.COLOR_RGB) {
 	                				image1DArray[k+(j*width)] = sip.get(k, j);
 	                			} else {
-	                				image1DArray[k+(j*width)] = sip.getInterpolatedValue(k,j);
+	                				image1DArray[k+(j*width)] = sip.getf(k,j);
 	                			}
 	                		}
 	                	}
@@ -95,19 +106,14 @@ public class Pca_ implements PlugIn {
 	                		imageMatrix[s][l] = image1DArray[l];
 	                	}
 	            	}
-	            	double[][] temp2 = new double[imageMatrix[0].length][imageMatrix.length];
-	            	//double[][] temp2 = new double[imageMatrix.length][imageMatrix[0].length];
+	            	double[][] temp2 = new double[imageMatrix.length][imageMatrix[0].length];
 	            	for (int i=0; i<imageMatrix.length; i++) {
 	            		for (int j=0; j<imageMatrix[0].length; j++) {
-	            			//temp2[j][i] = imageMatrix[i][j];			//I think I am transposing the elements of the 2D image-matrix array here
-	            			temp2[j][i] = imageMatrix[i][j];	
+	            			temp2[i][j] = imageMatrix[i][j];	
 	            		}
 	            	}
-	            	pca.setup((width*height), stack.getStackSize());
-	            	//pca.setup(stack.getStackSize(), (width*height));	//this is the normal way to feed images to PCA?
-	            	for (int p = 0; p < (width*height); p++) {
-	            	//for (int p = 0; p < stack.getStackSize(); p++) {
-	            		//pca.addSample(temp2[p]);
+	            	pca.setup(stack.getStackSize(), (width*height));
+	            	for (int p = 0; p < stack.getStackSize(); p++) {
 	            		pca.addSample(temp2[p]);
 	            	}
 	            	//stack.close();
@@ -121,7 +127,7 @@ public class Pca_ implements PlugIn {
 		                }
 	            }
 	        }
-	        //specify a folder to perform tSNE on
+	        //specify a folder to perform PCA on
 	        else if (inputFolderPath.isEmpty() && debugArray == null) {
 	        DirectoryChooser dc = new DirectoryChooser("Select a folder");
 	        inputFolderPath = dc.getDirectory();
@@ -152,8 +158,7 @@ public class Pca_ implements PlugIn {
 	    				}
 	    			}
 	    		});
-	    		//IJ.log("File list: "+Arrays.toString(Filelist));
-	    			
+	    		
 	    		if (Filelist==null) {
 	    			IJ.log("The specified directory does not contain images to process.");
 	    			return;
@@ -163,15 +168,11 @@ public class Pca_ implements PlugIn {
 	    	 if (debugArray == null && !processingStack) {
 	    			//Open the first image in the folder to get dimensions.. could have done it in the loop
 	    			ImagePlus imp0 = IJ.openImage(inputFolderPath + Filelist[0]);
-	    	    	int width = imp0.getWidth();
-	    	    	int height = imp0.getHeight();
+	    	    	width = imp0.getWidth();
+	    	    	height = imp0.getHeight();
 	    	    	imp0.close();
 	    	    	
 	    	    	pca.setup(Filelist.length, width*height);
-	    			
-	    			/* Optional 2D array of pixel data from all samples... setup
-	    	    	// imageMatrix = new double[Filelist.length][width*height];
-	    			*/
 	    	    	
 	    	    	IJ.log("Number of images = "+imageMatrix.length);			//300
 	    			IJ.log("Dimensions (pixels) = "+imageMatrix[0].length);	//900
@@ -196,18 +197,12 @@ public class Pca_ implements PlugIn {
 	    	        			if (type == ImagePlus.COLOR_RGB) {
 	    	        				image1DArray[k+(j*width)] = ip.get(k, j);
 	    	        			} else {
-	    	        				image1DArray[k+(j*width)] = (float) ip.getInterpolatedValue(k,j); //not sure if casting is appropriate here
+	    	        				image1DArray[k+(j*width)] = (float) ip.getf(k,j); //not sure if casting is appropriate here
 	    	        			}
 	    	        		}
 	    	        	}
 	    	        	imp.close();
 	    	        	pca.addSample(image1DArray);
-	    	        	
-	    	        	/* Optional population of the 2D pixel array
-	    	        	for(int l = 0; l < (width*height); l++) {
-	    	        		imageMatrix[i][l] = image1DArray[l];
-	    	        	}
-	    	        	*/
 	    	        }
 	    	    }
 	    	 
@@ -233,51 +228,36 @@ public class Pca_ implements PlugIn {
 	         	}
 	         }
 	    	 
-	    	 // get and plot first 2 principal components
+	    	 // get and plot 2 sample vectors corresponding to specified principal components, or the first 2 if none are specified
 	    	 if (pca_comp >= 0) {
-	    		double[] Pcomp1 = pca.getBasisVector(0);
+	    		double[] Pcomp1 = pca.getU(pcompX-1);
+	    		
 	    		double[] Pcomp2;
 	    		if (pca_comp < 2) {
-	    		Pcomp2 = pca.getBasisVector(0);
+	    		Pcomp2 = pca.getU(pcompX-1);
 	    		} else {
-	    			Pcomp2 = pca.getBasisVector(1);
+	    			Pcomp2 = pca.getU(pcompY-1);
 	    		}
-	    		if (eigen_out != -1) {
-	    			//double[] PcompX = pca.getBasisVector(eigen_out);
-	    			//double[] eigenX = pca.getEigVector(eigen_out);
-	    			double[] eigenX = pca.getBasisVector(eigen_out); //This doesn't look right, but I am not using this function currently. Can come back to later.
-	    			
-	    				IJ.log("eigenX length = "+Integer.toString(eigenX.length));
-	    				IJ.log("eigenX[0] = "+Double.toString(eigenX[0]));
-	    				IJ.log("eigenX[1] = "+Double.toString(eigenX[1]));
-	    				//double[] eigensample1 = pca.sampleToEigenSpace(Pcomp1);
-	    				//IJ.log("eigensample1 length = "+Integer.toString(eigensample1.length));
-	    				///double[] eigen1 = pca.eigenToSampleSpace(Pcomp1);
-	    				///IJ.log("Pcomp1 length = "+Integer.toString(eigen1.length));
-	    					//double[] stesX =  pca.sampleToEigenSpace(PcompX);
-	    				//IJ.log("stesX length = "+Integer.toString(stesX.length));
-	    				
-	    					//double[] eigenX = pca.eigenToSampleSpace(stesX);
-	    				//IJ.log("eigenX length = "+Integer.toString(eigenX.length));
-	    				
-	    				//display Pcomp1 reconstructed as an image of original sample dimensions
-	    				ImagePlus outputPlus = NewImage.createImage("PCA vectors", eigenX.length, 1, 1, bitD, NewImage.FILL_BLACK);
-	    				ImageProcessor outputProc = outputPlus.getProcessor();
-	    				/*
-	    			IJ.log("Pcomp1 value in position 0 = "+Double.toString(eigenX[0]));
-	    				IJ.log("Position 0 cast to int = "+Integer.toString((int)eigenX[0]));
-	    			IJ.log("Pcomp1 value in position 1 = "+Double.toString(eigenX[1]));
-	    				IJ.log("Position 1 cast to int = "+Integer.toString((int)eigenX[1]));
-	    			IJ.log("Pcomp1 value in position 2 = "+Double.toString(eigenX[2]));
-	    				IJ.log("Position 2 cast to int = "+Integer.toString((int)eigenX[2]));
-	    				 */
-	    				for (int i = 0; i < eigenX.length; i++) {
-	    					outputProc.set(i, 0, (int)Math.round(eigenX[i]));
+	    		if (eigen_out > 0 && eigen_out <= pca_comp) {
+	    			double[] eigenX = pca.getBasisVector(eigen_out-1);
+    				ImagePlus outputPlus = NewImage.createImage("Eigenvector " + String.valueOf(eigen_out), width, height, 1, bitD, NewImage.FILL_BLACK);
+    				ImageProcessor outputProc = outputPlus.getProcessor();
+
+    				if (eigenX.length != (width*height)) {
+    					IJ.log("Error: could not reconstruct eigenvector " + String.valueOf(eigen_out) + " as an image, as its length does not equal the orginal image width*height.");
+    				} else {
+	    				for (int i = 0; i < height; i++) {
+	    					for (int j = 0; j < width; j++) {
+	    						outputProc.setf(j, i, (float) (eigenX[j+(i*width)])*5000);	//*5000 is a dirty fudge factor. This isn't what you are meant to do to get eigenvectors but the output is visually pleasing for 8-bit eigenfaces.
+	    					}
 	    				}
 	    				outputPlus.show();
+    				}
+	    		} else {
+	    			IJ.log("Could not output the specified eigenvector as it is less than 1 or greater than the number of computed principal components.");
 	    		}
 	    		
-	        	Plot scatter = new Plot("PCA output", "principal component 1", "principal component 2");
+	        	Plot scatter = new Plot("PCA output", "principal component "+ Integer.toString(pcompX), "principal component " + Integer.toString(pcompY));
 	        	if (labelsArray == null) {
 	        		scatter.setLineWidth(5);
 	        		scatter.addPoints(Pcomp1, Pcomp2, 6);
@@ -320,17 +300,9 @@ public class Pca_ implements PlugIn {
 	        			int g = rand.nextInt(230);
 	        			int b = rand.nextInt(230);
 	        			Color ranCol = new Color(r,g,b);
-	        			/* some explict colour assignment for dirty debugging.
-	        			if (y == 0) {
-	        				scatter.setColor(Color.BLACK);
-	        			/} else {
-	        				scatter.setColor(Color.RED);
-	        			}
-	        			*/
 	        			scatter.setColor(ranCol);
 	        			scatter.setLineWidth(5);
 	        			scatter.addPoints(XXarray, YYarray, 6);
-	        			//scatter.addLegend(uniqueArray[y]);
 	        		}
 	        		StringBuilder sb = new StringBuilder();
 	        		for (int y = 0; y < groupN; y++) {
@@ -343,16 +315,12 @@ public class Pca_ implements PlugIn {
 	        		}
 	        		String legendLabels = sb.toString();
 	        		scatter.addLegend(legendLabels);
-	        			//scatter.addLegend((uniqueArray.toString())); //gave odd results, depsite simplicity
 	        		scatter.show();
 	        		scatter.setLimitsToFit(true);
 	        		//IJ.log("File list: "+Arrays.toString(Filelist));
 	        	}
 	    		
-	    	 }
-	    	 
-	    	 
-	    	 
+	    	 } 	 
 	}
 	
     public String[] getLabels( String inputIndexPath) throws IOException {
@@ -411,14 +379,12 @@ public class Pca_ implements PlugIn {
         // Initial dimensions to specify PCA pre-processing dimensionality-reduction.
         pca_comp = Integer.parseInt(Macro.getValue(optionsStr, "pca_comp", "2"));
         
-        // Output eigenvector
-        eigen_out = Integer.parseInt(Macro.getValue(optionsStr, "eigen_out", "-1"));
-
-        // Get the perplexity value or use the default.
-        // perplexity = Double.parseDouble(Macro.getValue(optionsStr, "perplexity", ""));
+        // Specify which principal component associated sample vectors to display.
+        pcompX = Integer.parseInt(Macro.getValue(optionsStr, "pc_x", "1"));
+        pcompY = Integer.parseInt(Macro.getValue(optionsStr, "pc_y", "2"));
         
-        // Get the maximum iterations for tSNE error approximation of use the default.
-        //max_iterations = Integer.parseInt(Macro.getValue(optionsStr, "max_iterations ", "1000"));
+        // Output a specified eigenvector (eigenface).
+        eigen_out = Integer.parseInt(Macro.getValue(optionsStr, "eigen_out", "-1"));
         
         // See if a CSV output is requested.
         //outputCSV = optionsStr.contains("output_csv");

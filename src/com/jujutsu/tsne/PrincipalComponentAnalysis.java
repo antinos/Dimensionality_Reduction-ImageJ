@@ -59,6 +59,9 @@ public class PrincipalComponentAnalysis {
 
     // principal component subspace is stored in the rows
     private DMatrixRMaj V_t;
+    
+    // U
+    private DMatrixRMaj U;
 
     // how many principal components are used
     private int numComponents;
@@ -128,10 +131,12 @@ public class PrincipalComponentAnalysis {
         }
         for( int j = 0; j < mean.length; j++ ) {
             mean[j] /= A.getNumRows();
+            //IJ.log("mean[j] = " + Double.toString(mean[j]));
         }
 
         // subtract the mean from the original data
         for( int i = 0; i < A.getNumRows(); i++ ) {
+        	//IJ.log("A.get(i,0)-mean[0] = " + Double.toString(A.get(i,0)-mean[0]));
             for( int j = 0; j < mean.length; j++ ) {
                 A.set(i,j,A.get(i,j)-mean[j]);
             }
@@ -139,15 +144,16 @@ public class PrincipalComponentAnalysis {
 
         // Compute SVD and save time by not computing U
         SingularValueDecomposition<DMatrixRMaj> svd =
-                DecompositionFactory_DDRM.svd(A.numRows, A.numCols, false, true, false);
+                DecompositionFactory_DDRM.svd(A.numRows, A.numCols, true, true, true);
         if( !svd.decompose(A) )
             throw new RuntimeException("SVD failed");
 
         V_t = svd.getV(null,true);
         DMatrixRMaj W = svd.getW(null);
+        U = svd.getU(null, false);
 
         // Singular values are in an arbitrary order initially
-        SingularOps_DDRM.descendingOrder(null, false, W, V_t, true);
+        SingularOps_DDRM.descendingOrder(U, false, W, V_t, true);
 
         // strip off unneeded components and find the basis
         V_t.reshape(numComponents,mean.length,true);
@@ -229,7 +235,6 @@ public class PrincipalComponentAnalysis {
         double[] eig = sampleToEigenSpace(sampleA);
         double[] reproj = eigenToSampleSpace(eig);
 
-
         double total = 0;
         for( int i = 0; i < reproj.length; i++ ) {
             double d = sampleA[i] - reproj[i];
@@ -273,4 +278,40 @@ public class PrincipalComponentAnalysis {
 		}
 		return trafoed;
     }
+    
+    /**
+     * Returns an eigen-vector from U. NOTE: consider changing to allow the product of multiple eigenvectors to be returned, if requested.
+     *
+     * @param which Which component's vector is to be returned.
+     * @return Vector from U.
+     */
+    public double[] getU( int which ) {
+        if( which < 0 || which >= A.numCols )
+            throw new IllegalArgumentException("Invalid vector");
+        
+        DMatrixRMaj u = new DMatrixRMaj(A.numRows, 1);
+        CommonOps_DDRM.extract(U, 0, A.numRows, which, which + 1, u, 0, 0);
+        
+        return u.data;
+    }
+    
+    /*
+    //Added incase a vector requires manipulation before being used
+    public double[] getEigen( int which ) {
+        if( which < 0 || which >= A.numCols )
+            throw new IllegalArgumentException("Invalid vector");
+        
+        //DMatrixRMaj u = new DMatrixRMaj(1,A.numCols);
+        DMatrixRMaj v = new DMatrixRMaj(1, A.numCols);
+        CommonOps_DDRM.extract(V_t, which, which + 1, 0, A.numCols, v, 0, 0);
+
+        //do I need to add the data mean back?
+	        for( int j = 0; j < mean.length; j++ ) {
+	        	v.set(0,j,v.get(0,j)+mean[j]);
+	    	}
+        
+        return v.data;
+    }
+    */
+    
 }

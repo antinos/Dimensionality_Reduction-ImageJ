@@ -1,7 +1,9 @@
-# Dimensionality Reduction (v1.0.1)
-*version release date:16/12/20*</br>
+# Dimensionality Reduction (v1.0.2)
+*version release date:14/02/21*</br>
 
-This plugin captures data from an open image stack or folder of images and performs one of three dimensionality reduction techniques (PCA, t-SNE, or UMAP) to project the high-dimensional data into a lower dimensional (2D) space that is then plotted onto an ImageJ scatter-plot. Under-the-hood, the plugin uses two really-awesome libraries (t-SNE: Leif Jonsson's [pure Java implementation of Van Der Maaten and Hinton's t-sne clustering algorithm](https://github.com/lejon/T-SNE-Java); and UMAP: Jesse Paquette's (of [tag.bio](https://tag.bio/)) [Java implementation of UMAP](https://github.com/tag-bio/umap-java), based on the reference [Python implementation](https://github.com/lmcinnes/umap)). Both are distributed under open-source licences, so even if this plugin doesn't suit you, perhaps their libraries can find a place in your respective projects!
+This plugin captures data from an open image stack or folder of images and performs one of three dimensionality reduction techniques (PCA, t-SNE, or UMAP) to project the high-dimensional data into a lower dimensional (2D) space that is then plotted onto an ImageJ scatter-plot. Under-the-hood, the plugin uses two really-awesome libraries (t-SNE: Leif Jonsson's [pure Java implementation of Van Der Maaten and Hinton's t-sne clustering algorithm](https://github.com/lejon/T-SNE-Java); and UMAP: Jesse Paquette's (of [tag.bio](https://tag.bio/)) [Java implementation of UMAP](https://github.com/tag-bio/umap-java), based on the reference [Python implementation](https://github.com/lmcinnes/umap)). Both are distributed under open-source licences, so even if this plugin doesn't suit you, perhaps their libraries can find a place in your respective projects!<br/>
+
+The PCA implementation is from Peter Abeles' ([lessthanoptimal](https://github.com/lessthanoptimal)) [efficient java matrix library](https://github.com/lessthanoptimal/ejml). This ImageJ version allows specified principal component axes (e.g. PC-1 vs PC-5) to be plotted and displayed. A specified eigenvector (eigenface) can optionally be reconstructed into an image (NOTE: this option is currently displaying incorrect pixel ranges even if the eigenvectors are true).
 
 ---
 ## Using the 'Dimensionality Reduction' plugin on an image stack or folder of images
@@ -18,6 +20,7 @@ Or by macro, with the following:
 
 ```javascript
 run("PCA");
+//see the relevant subsection later in this readme for further PCA options
 
 //or
 
@@ -74,6 +77,36 @@ From which you can plot the following (example using UMAP):</br>
 <img src="https://aws1.discourse-cdn.com/business4/uploads/imagej/optimized/3X/8/4/8400aa72ef49c5abcf54d99f488bf0ba3a472467_2_690x470.png" width="690">
 
 ---
+## PCA specific options
+
+Specify the number of principal components to use. 2 is specified in this example (PC1 + PC2), but it is also the default:
+
+```javascript
+run("PCA", "pca_comp=2");
+```
+
+Specify which principal component axes to display on the 'PCA output' scatterplot. Principal component 5 and 6 will be displayed using this example: <br/>
+(Note: pca_comp will automatically increase to facilitate the request)
+
+```javascript
+run("PCA", "pc_x=5 pc_y=6");
+```
+
+Specify an eigenvector (eigenface) to recompose and display as an image: <br/>
+**(Note: this option is partially working. I believe the eigenvectors are true but the pixel display range is off)**
+
+```javascript
+// Display the first eigenvector, corresponding to principal component 1.
+run("PCA", "eigen_out=1");
+```
+
+Example setting multiple parameters:
+
+```javascript
+run("PCA", "pca_comp=10 pc_x=1 pc_y=5 eigen_out=10 label_path=[C:/Users/Antinos/Documents/My_label_file.csv]");
+```
+
+---
 ## Installation and comments
 **Download the plugin from my [googledrive](https://drive.google.com/drive/folders/100w43HWtGFJiPstJmjNOZ-YH9ZFMIy4X?usp=sharing)**. I have also included some test image-stacks and accompanying label.csv files to play with. **To install the plugin, copy 'Dimensionality_Reduction-1.0.1.jar' to your Fiji plugins folder.**
 
@@ -105,7 +138,7 @@ Some of the other plugin parameters I haven't mentioned include:
 Future ideas for extending the functions of the 'Dimensionality Reduction' plugin:
 * Allow more than 2 output dimensions
     * Many of the underlying libraries already allow for this, so the ImageJ implementation just needs to be considered and effected
-* Allow the user to specify an output dimension (e.g. principal component 3/4/5 etc)
+* ~Allow the user to specify an output dimension (e.g. principal component 3/4/5 etc)~ **Has been added in v1.0.2. for PCA**
 * Allow low dimensional datapoints to be related to their original position/label, on an individual basis
     * Ideally, this could be achieved in an interactive manner, such that the user could specify points on the 2D output plot that are then correspondingly highlighted in the original matrix/results table/stack of images
     * The existing ImageJ plot may not be compatible with true interactivity, so another graphing solution may need to be found.
