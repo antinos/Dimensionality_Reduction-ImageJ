@@ -108,7 +108,7 @@ run("PCA", "pca_comp=10 pc_x=1 pc_y=5 eigen_out=10 label_path=[C:/Users/Antinos/
 
 ---
 ## Installation and comments
-**Download the plugin from my [googledrive](https://drive.google.com/drive/folders/100w43HWtGFJiPstJmjNOZ-YH9ZFMIy4X?usp=sharing)**. I have also included some test image-stacks and accompanying label.csv files to play with. **To install the plugin, copy 'Dimensionality_Reduction-1.0.1.jar' to your Fiji plugins folder.**
+**Download the plugin from my [googledrive](https://drive.google.com/drive/folders/100w43HWtGFJiPstJmjNOZ-YH9ZFMIy4X?usp=sharing)**. I have also included some test image-stacks and accompanying label.csv files to play with. **To install the plugin, copy 'Dimensionality_Reduction-1.0.2.jar' to your Fiji plugins folder.**
 
 This plugin will also work well with the 'Cluster My Data' plugin: [link to GitHub repo](https://github.com/antinos/Cluster_My_Data-ImageJ)
 
