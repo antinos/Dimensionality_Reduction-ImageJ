@@ -35,6 +35,7 @@ public class tsne_gui {
 				if (label_path != null && !("").equals(label_path) && label_path.matches(".*[A-Za-z].*")) {
 					IJ.log("t-SNE proceeding with perplexity set to "+perplexity+" and initial dimensions set to "+initial_dims+".");
 					IJ.run("t-SNE", "perplexity="+perplexity+" initial_dims="+initial_dims+" label_path=["+label_path+"]");
+					label_path = null;
 				} else {
 					IJ.log("t-SNE proceeding with perplexity set to "+perplexity+" and initial dimensions set to "+initial_dims+".");
 					IJ.run("t-SNE", "perplexity="+perplexity+" initial_dims="+initial_dims);
@@ -43,6 +44,7 @@ public class tsne_gui {
 				if (label_path != null && !("").equals(label_path) && label_path.matches(".*[A-Za-z].*")) {
 					IJ.log("t-SNE proceeding with n perplexity set to "+perplexity+". The default of 30 initial PCA components are being used as input.");
 					IJ.run("t-SNE", "perplexity="+perplexity+" label_path=["+label_path+"]");
+					label_path = null;
 				} else {
 					IJ.log("t-SNE proceeding with n perplexity set to "+perplexity+". The default of 30 initial PCA components are being used as input.");
 					IJ.run("t-SNE", "perplexity="+perplexity);
@@ -52,6 +54,7 @@ public class tsne_gui {
 			if (label_path != null && !("").equals(label_path) && label_path.matches(".*[A-Za-z].*")) {
 				IJ.log("t-SNE proceeding with perplexity set to the default of 50. "+initial_dims+" initial PCA dimesions are being used as t-SNE input.");
 				IJ.run("t-SNE", "initial_dims="+initial_dims+" label_path=["+label_path+"]");
+				label_path = null;
 			} else {
 				IJ.log("t-SNE proceeding with perplexity set to the default of 50. "+initial_dims+" initial PCA dimesions are being used as t-SNE input.");
 				IJ.run("t-SNE", "initial_dims="+initial_dims);
@@ -60,6 +63,7 @@ public class tsne_gui {
 			if (label_path != null && !("").equals(label_path) && label_path.matches(".*[A-Za-z].*")) {
 				IJ.log("t-SNE proceeding with default parameters (perplexity=50; initial dimensions=30).");
 				IJ.run("t-SNE", "label_path=["+label_path+"]");
+				label_path = null;
 			} else {
 				IJ.log("t-SNE proceeding with default parameters (perplexity=50; initial dimensions=30).");
 				IJ.run("t-SNE");
@@ -135,6 +139,8 @@ public class tsne_gui {
         	initial_dims = ini_dims.getText();
         	if (labelCheck.isSelected()) {
         		askForLabels = true;
+        	} else {
+        		askForLabels = false;
         	}
         } else if (result == JOptionPane.CANCEL_OPTION) {
       	  cancelled = true;

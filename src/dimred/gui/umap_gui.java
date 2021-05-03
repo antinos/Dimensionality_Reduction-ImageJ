@@ -35,6 +35,7 @@ public class umap_gui {
 				if (label_path != null && !("").equals(label_path) && label_path.matches(".*[A-Za-z].*")) {
 					IJ.log("UMAP proceeding with 'n nearest neighbours' set to "+nNeighbours+". "+nThreads+" CPU thread(s) have been selected for use.");
 					IJ.run("UMAP", "n_nearest="+nNeighbours+" n_threads="+nThreads+" label_path=["+label_path+"]");
+					label_path = null;
 				} else {
 					IJ.log("UMAP proceeding with 'n nearest neighbours' set to "+nNeighbours+". "+nThreads+" CPU thread(s) have been selected for use.");
 					IJ.run("UMAP", "n_nearest="+nNeighbours+" n_threads="+nThreads);
@@ -43,6 +44,7 @@ public class umap_gui {
 				if (label_path != null && !("").equals(label_path) && label_path.matches(".*[A-Za-z].*")) {
 					IJ.log("UMAP proceeding with 'n nearest neighbours' set to "+nNeighbours+". CPU parallelisation is off.");
 					IJ.run("UMAP", "n_nearest="+nNeighbours+" label_path=["+label_path+"]");
+					label_path = null;
 				} else {
 					IJ.log("UMAP proceeding with 'n nearest neighbours' set to "+nNeighbours+". CPU parallelisation is off.");
 					IJ.run("UMAP", "n_nearest="+nNeighbours);
@@ -52,6 +54,7 @@ public class umap_gui {
 			if (label_path != null && !("").equals(label_path) && label_path.matches(".*[A-Za-z].*")) {
 				IJ.log("UMAP proceeding with 'n nearest neighbours' set to 15. "+nThreads+" CPU thread(s) have been selected for use.");
 				IJ.run("UMAP", "n_threads="+nThreads+" label_path=["+label_path+"]");
+				label_path = null;
 			} else {
 				IJ.log("UMAP proceeding with 'n nearest neighbours' set to 15. "+nThreads+" CPU thread(s) have been selected for use.");
 				IJ.run("UMAP", "n_threads="+nThreads);
@@ -60,6 +63,7 @@ public class umap_gui {
 			if (label_path != null && !("").equals(label_path) && label_path.matches(".*[A-Za-z].*")) {
 				IJ.log("UMAP proceeding with default parameters.");
 				IJ.run("UMAP", "label_path=["+label_path+"]");
+				label_path = null;
 			} else {
 				IJ.log("UMAP proceeding with default parameters.");
 				IJ.run("UMAP");
@@ -135,6 +139,8 @@ public class umap_gui {
         	nThreads = numThreads.getText();
         	if (labelCheck.isSelected()) {
         		askForLabels = true;
+        	} else {
+        		askForLabels = false;
         	}
         	
         } else if (result == JOptionPane.CANCEL_OPTION) {

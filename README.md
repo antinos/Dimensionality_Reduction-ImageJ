@@ -1,9 +1,11 @@
-# Dimensionality Reduction (v1.0.2)
-*version release date:14/02/21*</br>
+# Dimensionality Reduction (v1.0.3)
+*version release date:03/05/21*</br>
 
 This plugin captures data from an open image stack or folder of images and performs one of three dimensionality reduction techniques (PCA, t-SNE, or UMAP) to project the high-dimensional data into a lower dimensional (2D) space that is then plotted onto an ImageJ scatter-plot. Under-the-hood, the plugin uses two really-awesome libraries (t-SNE: Leif Jonsson's [pure Java implementation of Van Der Maaten and Hinton's t-sne clustering algorithm](https://github.com/lejon/T-SNE-Java); and UMAP: Jesse Paquette's (of [tag.bio](https://tag.bio/)) [Java implementation of UMAP](https://github.com/tag-bio/umap-java), based on the reference [Python implementation](https://github.com/lmcinnes/umap)). Both are distributed under open-source licences, so even if this plugin doesn't suit you, perhaps their libraries can find a place in your respective projects!<br/>
 
 The PCA implementation is from Peter Abeles' ([lessthanoptimal](https://github.com/lessthanoptimal)) [efficient java matrix library](https://github.com/lessthanoptimal/ejml). This ImageJ version allows specified principal component axes (e.g. PC-1 vs PC-5) to be plotted and displayed. A specified eigenvector (eigenface) can optionally be reconstructed into an image (NOTE: this option is currently displaying incorrect pixel ranges even if the eigenvectors are true).
+
+From v1.0.3, an interactive scatter plot is output, in addition to the normal ImageJ plot, that allows easy view-toggling of data-clusters and the individual selection of graph points. Clicking on plot points will highlight the corresponding image in an image stack, which is nice for interrogating cluster members and outliers.
 
 ---
 ## Using the 'Dimensionality Reduction' plugin on an image stack or folder of images
@@ -107,12 +109,28 @@ run("PCA", "pca_comp=10 pc_x=1 pc_y=5 eigen_out=10 label_path=[C:/Users/Antinos/
 ```
 
 ---
+## The interactive plot
+
+* Use the mouse wheel to zoom in and out.
+* Double-click the plot to reset the field-of-view and zoom-level.
+* Click on legend icons to toggle data-point visibility on and off.
+* Clicking on individual plot points will highlight the corresponding image in the image stack. If you select another stack of images, this will be used by the plugin if it contains the same number of slices.
+* Right-clicking on the graph window will allow the user to copy an image of the plot to the clipboard or to save a fully interactive version of the plot to file.
+* Plot save and load functions are also available in the GUI dropdown menu: Plugins>Dimensionality Reduction>...
+
+---
 ## Installation and comments
-**Download the plugin from my [googledrive](https://drive.google.com/drive/folders/100w43HWtGFJiPstJmjNOZ-YH9ZFMIy4X?usp=sharing)**. I have also included some test image-stacks and accompanying label.csv files to play with. **To install the plugin, copy 'Dimensionality_Reduction-1.0.2.jar' to your Fiji plugins folder.**
+**Download the plugin from my [googledrive](https://drive.google.com/drive/folders/100w43HWtGFJiPstJmjNOZ-YH9ZFMIy4X?usp=sharing)**. I have also included some test image-stacks and accompanying label.csv files to play with.
+
+**To install the plugin:**
+* **copy 'Dimensionality_Reduction-1.0.3.jar' to your Fiji plugins folder.**
+* **copy 'javafx.base.jar', 'javafx.swing.jar', javafx.graphics.jar', and 'javafx.controls.jar' to your Fiji jars folder.** (required from v1.0.3.)
+
+*(Technical note: in the future, I may try to Uber-jar the dependency files)*
 
 This plugin will also work well with the 'Cluster My Data' plugin: [link to GitHub repo](https://github.com/antinos/Cluster_My_Data-ImageJ)
 
-Some of the other plugin parameters I haven't mentioned include:
+Some of the other plugin (macro) parameters I haven't mentioned include:
 * t-SNE 'parallel': as you might guess, this runs the plugin in a multi-threaded fashion.
 * UMAP 'metric=': allows the user to pick between metrics to measure distance in the input space, including:
     * euclidean (default)
@@ -133,12 +151,13 @@ Some of the other plugin parameters I haven't mentioned include:
     * sokalmichener
     * sokalsneath
     * yule
+* 'no_prompt': can be used to suppress the 'process the image stack?' dialogue.
 
 ---
 Future ideas for extending the functions of the 'Dimensionality Reduction' plugin:
 * Allow more than 2 output dimensions
     * Many of the underlying libraries already allow for this, so the ImageJ implementation just needs to be considered and effected
 * ~Allow the user to specify an output dimension (e.g. principal component 3/4/5 etc)~ **Has been added in v1.0.2. for PCA**
-* Allow low dimensional datapoints to be related to their original position/label, on an individual basis
-    * Ideally, this could be achieved in an interactive manner, such that the user could specify points on the 2D output plot that are then correspondingly highlighted in the original matrix/results table/stack of images
-    * The existing ImageJ plot may not be compatible with true interactivity, so another graphing solution may need to be found.
+* ~Allow low dimensional datapoints to be related to their original position/label, on an individual basis~ **Has been added in v1.0.3., but is still a work-in-progress**
+    * ~Ideally, this could be achieved in an interactive manner, such that the user could specify points on the 2D output plot that are then correspondingly highlighted in the original matrix/results table/stack of images~
+    * ~The existing ImageJ plot may not be compatible with true interactivity, so another graphing solution may need to be found.~

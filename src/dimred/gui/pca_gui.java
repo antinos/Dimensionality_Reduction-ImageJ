@@ -54,6 +54,7 @@ public class pca_gui {
 		
 		if (label_path != null && !("").equals(label_path) && label_path.matches(".*[A-Za-z].*")) {
 			arguments = arguments + " " + "label_path=["+label_path+"]";
+			label_path = null;
 		}
 		
 		IJ.run("PCA", ""+arguments);
@@ -174,6 +175,8 @@ public class pca_gui {
         	eigen_out = eigenvector.getText();
         	if (labelCheck.isSelected()) {
         		askForLabels = true;
+        	} else {
+        		askForLabels = false;
         	}
         } else if (result == JOptionPane.CANCEL_OPTION) {
       	  cancelled = true;
