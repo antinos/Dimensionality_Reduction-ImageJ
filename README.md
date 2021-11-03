@@ -118,6 +118,12 @@ run("PCA", "pca_comp=10 pc_x=1 pc_y=5 eigen_out=10 label_path=[C:/Users/Antinos/
 * Right-clicking on the graph window will allow the user to copy an image of the plot to the clipboard or to save a fully interactive version of the plot to file.
 * Plot save and load functions are also available in the GUI dropdown menu: Plugins>Dimensionality Reduction>...
 
+For example, running UMAP on this stack of rotating letters:</br>
+<img src="https://aws1.discourse-cdn.com/business4/uploads/imagej/original/3X/c/6/c632f3f9a6174325e608cc79bf830c1c0f4a308e.gif" width="50"></br>
+<img src="https://aws1.discourse-cdn.com/business4/uploads/imagej/optimized/3X/d/4/d41acbe3c47410575ef51eacc295579a830ef135_2_398x375.png" width="398"></br>
+Results in a plot that can be manipluated in this way:</br>
+<img src="https://aws1.discourse-cdn.com/business4/uploads/imagej/original/3X/e/6/e69b927b486e9f0a0567aa9b2741ad30a1126648.gif" width="690">
+
 ---
 ## Installation and comments
 **Download the plugin from my [googledrive](https://drive.google.com/drive/folders/100w43HWtGFJiPstJmjNOZ-YH9ZFMIy4X?usp=sharing)**. I have also included some test image-stacks and accompanying label.csv files to play with.
