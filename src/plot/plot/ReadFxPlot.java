@@ -27,9 +27,16 @@ import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.input.ScrollEvent;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.Pane;
 import javafx.scene.layout.Priority;
+import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.shape.Circle;
+import javafx.scene.shape.ClosePath;
+import javafx.scene.shape.LineTo;
+import javafx.scene.shape.MoveTo;
+import javafx.scene.shape.Path;
+import javafx.scene.shape.StrokeLineCap;
 
 import java.awt.Color;
 import java.io.File;
@@ -38,6 +45,8 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.FutureTask;
@@ -46,6 +55,7 @@ import javax.swing.JFileChooser;
 import javax.swing.JFrame;
 import javax.swing.SwingUtilities;
 import javax.swing.filechooser.FileNameExtensionFilter;
+
 
 public class ReadFxPlot implements PlugIn {
 	//Top level initialisation
@@ -69,6 +79,13 @@ public class ReadFxPlot implements PlugIn {
 	private static ScatterChart<Number,Number> sc_Fx;
 	private static Scene scene;
 	private static Label cursorCoords = null;
+	private static boolean multiEnabled = false;
+	static Path multiPath = new Path();
+	static Pane pathPane = new Pane();
+	static double xPathOffset = 0;
+	static double yPathOffset = 0;
+    static double mouseStartX;
+    static double mouseStartY;
 	
 	@SuppressWarnings("unchecked")
 	public void run(String arg) {
@@ -320,9 +337,15 @@ public class ReadFxPlot implements PlugIn {
         scene  = new Scene(new Group());
         final VBox vbox = new VBox();
         final HBox hbox = new HBox();
+        final StackPane spane = new StackPane();
+        pathPane = new Pane();
+	        pathPane.prefWidthProperty().bind(vbox.widthProperty());
+	        pathPane.prefHeightProperty().bind(vbox.heightProperty());
+	        pathPane.setPickOnBounds(false);
         hbox.setSpacing(10);
         hbox.getChildren().add(cursorCoords);
-        vbox.getChildren().addAll(sc_Fx, hbox);  
+        spane.getChildren().addAll(sc_Fx);
+        vbox.getChildren().addAll(spane, hbox); 
         hbox.setPadding(new Insets(5, 5, 5, 20));
         vbox.setFillWidth(true);
         hbox.setFillHeight(true);
@@ -331,12 +354,15 @@ public class ReadFxPlot implements PlugIn {
         cursorCoords = coordinateListener();
         
         zoomAndPan();
+        multiSelectToolandContextMenu();
         
         sc_Fx.prefWidthProperty().bind(vbox.widthProperty());
         sc_Fx.prefHeightProperty().bind(vbox.heightProperty());
         vbox.prefWidthProperty().bind(scene.widthProperty());
         vbox.prefHeightProperty().bind(scene.heightProperty());
         ((Group)scene.getRoot()).getChildren().add(vbox);
+        spane.getChildren().add(pathPane);
+        pathPane.getChildren().add(multiPath);
         
         fxPanel.setScene(scene);
     }
@@ -371,7 +397,8 @@ public class ReadFxPlot implements PlugIn {
     
     private static void zoomAndPan() {
         //adapted from https://stackoverflow.com/questions/22099650/zoom-bar-chart-with-mouse-wheel
-    	sc_Fx.setOnScroll(new EventHandler<ScrollEvent>() {
+    	Node chartBackground = sc_Fx.lookup(".chart-plot-background");			///////////////////////////////////////////////////////////////////////////////////
+    	chartBackground.setOnScroll(new EventHandler<ScrollEvent>() {
     	    public void handle(ScrollEvent event) {
     	        event.consume();
     	        if (event.getDeltaY() == 0) {
@@ -408,32 +435,185 @@ public class ReadFxPlot implements PlugIn {
     	        
     	    }
     	});
+    }
+    
+    private static void multiSelectToolandContextMenu() {
+    	Node chartBackground = sc_Fx.lookup(".chart-plot-background");
+    	SelectionModel selectionModel = new SelectionModel();
     	
-    	//double click to reset chart area (to auto-ranging)
-    	sc_Fx.setOnMousePressed(new EventHandler<MouseEvent>() {
+    	multiPath = new Path();
+    	multiPath.setStroke(javafx.scene.paint.Color.BLUE);
+    	multiPath.setStrokeWidth(1);
+    	multiPath.setStrokeLineCap(StrokeLineCap.ROUND);
+    	multiPath.setFill(javafx.scene.paint.Color.LIGHTBLUE.deriveColor(0, 1.2, 1, 0.6));  	
+    	multiPath.setOnMousePressed(new EventHandler<MouseEvent>() {
     	    public void handle(MouseEvent event) {
-    	        if (event.getClickCount() == 2) {
-    	        	xAxis_Fx.setAutoRanging(true);
-    	        	yAxis_Fx.setAutoRanging(true);
-    	        }
-    	        if (event.getButton() == MouseButton.SECONDARY) {
-    	        	final ContextMenu contextMenu = new ContextMenu();
-    	        	MenuItem copy = new MenuItem("Copy to clipboard");
-    	        	contextMenu.getItems().addAll(copy);
-    	        	contextMenu.show(sc_Fx, event.getScreenX(), event.getScreenY());
-    	        	copy.setOnAction(new EventHandler<ActionEvent>() {
-    	        		 public void handle(ActionEvent event) {
+    	    	if (event.getButton() == MouseButton.SECONDARY) {
+    	    		//IJ.log("Shape successfully selected.");
+    	    		//Opportunity to add some context functions here... like an option to add a group label to the selected points. Or maybe just a way to cancel the area.
+    	    	}
+    	    	event.consume();
+    	    }
+    	});
+    	
+        multiEnabled = false;
+        //Could go here.. optional inclusion of array wrapper for mouseStartX and Y if I do not want to initialise them as global variables
+        
+        chartBackground.setOnMousePressed(e -> {
+        	if (e.getClickCount() == 1 && e.getButton() == MouseButton.PRIMARY) {
+	        	if(multiEnabled) {
+	        		return;
+	        	}
+	        	mouseStartX = e.getSceneX();
+	        	mouseStartY = e.getSceneY();
+	        	
+	        	//Chart background to window(scene) coordinate offset... allows us to compare node positions with the multiPath area later
+	        	xPathOffset = e.getSceneX()-e.getX();
+	        	yPathOffset = e.getSceneY()-e.getY();
+	        	//IJ.log("xOffset = "+Double.toString(xPathOffset)+", yOffset = "+Double.toString(yPathOffset));
+	
+	    		multiPath.getElements().clear();
+	    		multiPath.getElements().add(new MoveTo(e.getSceneX(), e.getSceneY()));
+	    		
+	            e.consume();
+	
+	            multiEnabled = true;
+        	}
+        	if (e.getClickCount() == 2 && e.getButton() == MouseButton.PRIMARY) {
+	        	xAxis_Fx.setAutoRanging(true);
+	        	yAxis_Fx.setAutoRanging(true);
+	        	e.consume();
+        	}
+        	if (e.getButton() == MouseButton.SECONDARY) {
+	        	final ContextMenu contextMenu = new ContextMenu();
+	        	MenuItem copy = new MenuItem("Copy to clipboard");
+	        	MenuItem save = new MenuItem("Save interactive plot");
+	        	contextMenu.getItems().addAll(copy, save);
+	        	contextMenu.show(sc_Fx, e.getScreenX(), e.getScreenY());
+	        	copy.setOnAction(new EventHandler<ActionEvent>() {
+	        		 public void handle(ActionEvent event) {
 		    	        	WritableImage image = scene.snapshot(null);
 		    	        	//WritableImage image = chart.snapshot(new SnapshotParameters(), null);
 		    	            ClipboardContent cc = new ClipboardContent();
 		    	            cc.putImage(image);
 		    	            Clipboard.getSystemClipboard().setContent(cc);
-    	        		}
-    	        	});
-    	        }
-    	    }
-    	});
-    	
+	        		}
+	        	});
+	        	save.setOnAction(new EventHandler<ActionEvent>() {
+	        		public void handle(ActionEvent event) {
+	    	        	SaveFxPlot savePlot = new SaveFxPlot();
+	    	        	savePlot.run(null);
+	        		}
+	        	});
+	        	e.consume();
+	        }
+        });
+        
+        chartBackground.setOnMouseDragged(e -> {
+        	if (e.getButton() == MouseButton.PRIMARY) {
+        		if (!multiEnabled) {
+        			return;
+        		}
+	        	multiPath.getElements().add(new LineTo(e.getSceneX(), e.getSceneY()));
+	        	
+	        	e.consume();
+        	}
+        });
+        
+        chartBackground.setOnMouseReleased(e -> {
+        	if (e.getButton() == MouseButton.PRIMARY) {
+        		if (!multiEnabled) {
+        			return;
+        		}
+	        	int areaNodes = 0;
+	        	multiPath.getElements().add(new LineTo(mouseStartX, mouseStartY)); //see if moving the line to the path origin makes the next closePath call less jumpy.
+	        	multiPath.getElements().add(new ClosePath());
+	        	
+	        	//if the fist multiPath point is the same as the last, then no path was drawn and the path will be deleted
+	        	if (mouseStartX == e.getSceneX() && mouseStartY == e.getSceneY()) {
+	        		multiPath.getElements().clear();
+	        		e.consume();
+	        		multiEnabled = false;
+	        		return;
+	        	}
+	        	
+	            if(!e.isControlDown() || !e.isShiftDown()) {
+	            	selectionModel.clear();
+	            }
+	            
+	            //Iterate over all sc_Fx nodes, series-by-series. Perhaps there is a better way of achieving this.
+	            for (ScatterChart.Series<Number, Number> series : sc_Fx.getData()) {
+		            	for (Data<Number, Number> data : series.getData()) {
+			                Node node = data.getNode();
+	
+		                	if (multiPath.contains(node.getBoundsInParent().getMinX()+xPathOffset, node.getBoundsInParent().getMinY()+yPathOffset) && node.isVisible()) {
+			                	areaNodes++;
+			                	//IJ.log("Overlap found.");
+			                	//IJ.log("Overlap coordinates = "+Double.toString(node.getBoundsInParent().getMinX())+", "+Double.toString(node.getBoundsInParent().getMinY()));
+			                	//ImagePlus stack3 = WindowManager.getCurrentImage();
+			                	//stack3.setSlice(lookupArray[sc_Fx.getData().indexOf(series)][series.getData().indexOf(data)]);
+			                }
+			                //int positionInStack = lookupArray[sc_Fx.getData().indexOf(series)][series.getData().indexOf(data)];
+		            	}
+	            }
+	            
+	            if (areaNodes == 1) {
+	            	IJ.log("1 point in the area.");
+	            } else if (areaNodes > 1) {
+	            	IJ.log(areaNodes+" points in the area.");
+	            }
+	            
+	            //multiPath.getElements().clear();
+	            
+	        	e.consume();
+	        	
+	        	multiEnabled = false;
+        	}
+        });
+    }
+    
+    private static class SelectionModel {
+
+        Set<Node> selection = new HashSet<>();
+
+        @SuppressWarnings("unused")
+		public void add( Node node) {
+
+            if( !node.getStyleClass().contains("highlight")) {
+                node.getStyleClass().add( "highlight");
+            }
+
+            selection.add( node);
+        }
+
+        public void remove( Node node) {
+            node.getStyleClass().remove( "highlight");
+            selection.remove( node);
+        }
+
+		public void clear() {
+
+            while( !selection.isEmpty()) {
+                remove( selection.iterator().next());
+            }
+
+        }
+
+        @SuppressWarnings("unused")
+		public boolean contains( Node node) {
+            return selection.contains(node);
+        }
+
+        @SuppressWarnings("unused")
+		public int size() {
+            return selection.size();
+        }
+
+        @SuppressWarnings("unused")
+		public void log() {
+            System.out.println( "Items in model: " + Arrays.asList( selection.toArray()));
+        }
+
     }
 	
 }

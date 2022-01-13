@@ -1,11 +1,12 @@
-# Dimensionality Reduction (v1.0.3)
-*version release date:03/05/21*</br>
+# Dimensionality Reduction (v1.0.4)
+*version release date:13/01/22*</br>
 
 This plugin captures data from an open image stack or folder of images and performs one of three dimensionality reduction techniques (PCA, t-SNE, or UMAP) to project the high-dimensional data into a lower dimensional (2D) space that is then plotted onto an ImageJ scatter-plot. Under-the-hood, the plugin uses two really-awesome libraries (t-SNE: Leif Jonsson's [pure Java implementation of Van Der Maaten and Hinton's t-sne clustering algorithm](https://github.com/lejon/T-SNE-Java); and UMAP: Jesse Paquette's (of [tag.bio](https://tag.bio/)) [Java implementation of UMAP](https://github.com/tag-bio/umap-java), based on the reference [Python implementation](https://github.com/lmcinnes/umap)). Both are distributed under open-source licences, so even if this plugin doesn't suit you, perhaps their libraries can find a place in your respective projects!<br/>
 
 The PCA implementation is from Peter Abeles' ([lessthanoptimal](https://github.com/lessthanoptimal)) [efficient java matrix library](https://github.com/lessthanoptimal/ejml). This ImageJ version allows specified principal component axes (e.g. PC-1 vs PC-5) to be plotted and displayed. A specified eigenvector (eigenface) can optionally be reconstructed into an image (NOTE: this option is currently displaying incorrect pixel ranges even if the eigenvectors are true).
 
 From v1.0.3, an interactive scatter plot is output, in addition to the normal ImageJ plot, that allows easy view-toggling of data-clusters and the individual selection of graph points. Clicking on plot points will highlight the corresponding image in an image stack, which is nice for interrogating cluster members and outliers.
+v1.0.4 has added a lasso tool to the interactive plot for counting of multiple points within a selection area. In the future, this may be used for sub-level data analysis or labelling. 
 
 ---
 ## Using the 'Dimensionality Reduction' plugin on an image stack or folder of images
@@ -117,12 +118,6 @@ run("PCA", "pca_comp=10 pc_x=1 pc_y=5 eigen_out=10 label_path=[C:/Users/Antinos/
 * Clicking on individual plot points will highlight the corresponding image in the image stack. If you select another stack of images, this will be used by the plugin if it contains the same number of slices.
 * Right-clicking on the graph window will allow the user to copy an image of the plot to the clipboard or to save a fully interactive version of the plot to file.
 * Plot save and load functions are also available in the GUI dropdown menu: Plugins>Dimensionality Reduction>...
-
-For example, running UMAP on this stack of rotating letters:</br>
-<img src="https://aws1.discourse-cdn.com/business4/uploads/imagej/original/3X/c/6/c632f3f9a6174325e608cc79bf830c1c0f4a308e.gif" width="50"></br>
-<img src="https://aws1.discourse-cdn.com/business4/uploads/imagej/optimized/3X/d/4/d41acbe3c47410575ef51eacc295579a830ef135_2_398x375.png" width="398"></br>
-Results in a plot that can be manipluated in this way:</br>
-<img src="https://aws1.discourse-cdn.com/business4/uploads/imagej/original/3X/e/6/e69b927b486e9f0a0567aa9b2741ad30a1126648.gif" width="690">
 
 ---
 ## Installation and comments
