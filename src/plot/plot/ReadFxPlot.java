@@ -284,6 +284,46 @@ public class ReadFxPlot implements PlugIn {
 	                		stack2.setSlice(lookupArray[sc.getData().indexOf(series)][series.getData().indexOf(data)]);	//note: add a null condition check for when a stack wasn't the input
 	                	}
 	                });
+	                
+	                //scroll zoom method over nodes... mouse scroll wheel zoom over the background is handled elsewhere
+	            	node.setOnScroll(new EventHandler<ScrollEvent>() {
+	            	    public void handle(ScrollEvent event) {
+	            	        event.consume();
+	            	        if (event.getDeltaY() == 0) {
+	            	            return;
+	            	        }
+	            	        
+	            	        // move chart area-view closer to node position
+	            	        double rawX = node.getBoundsInParent().getMinX();
+	            	        double rawY = node.getBoundsInParent().getMinY();
+	            	        double xPosition = xAxis_Fx.getValueForDisplay(rawX).doubleValue();
+	            	        double yPosition = yAxis_Fx.getValueForDisplay(rawY).doubleValue();
+	            	        double xDisplace = xPosition-((((xAxis_Fx.getUpperBound()-xAxis_Fx.getLowerBound())/2)+xAxis_Fx.getLowerBound()));
+	            	        xDisplace = xDisplace/4;	//fudge factor to make chart area moving less jumpy
+	            	        double yDisplace = yPosition-((((yAxis_Fx.getUpperBound()-yAxis_Fx.getLowerBound())/2)+yAxis_Fx.getLowerBound()));
+	            	        yDisplace = yDisplace/4;	//fudge factor to make chart area moving less jumpy
+	            	        xAxis_Fx.setLowerBound(xAxis_Fx.getLowerBound()+xDisplace);
+	            	        xAxis_Fx.setUpperBound(xAxis_Fx.getUpperBound()+xDisplace);
+	            	        yAxis_Fx.setLowerBound(yAxis_Fx.getLowerBound()+yDisplace);
+	            	        yAxis_Fx.setUpperBound(yAxis_Fx.getUpperBound()+yDisplace); 	        
+	            	        
+	            	        // zoom in 10%
+	            	        double SCALE_DELTA_X = (xAxis_Fx.getUpperBound()-xAxis_Fx.getLowerBound())*0.1;
+	            	        double SCALE_DELTA_Y = (yAxis_Fx.getUpperBound()-yAxis_Fx.getLowerBound())*0.1;
+	            	        xAxis_Fx.setAutoRanging(false); 
+	            	        yAxis_Fx.setAutoRanging(false);
+	            	        double xScaleFactor = (event.getDeltaY() > 0) ? SCALE_DELTA_X : SCALE_DELTA_X * (-1);
+	            	        double yScaleFactor = (event.getDeltaY() > 0) ? SCALE_DELTA_Y : SCALE_DELTA_Y * (-1);
+	            	        //x
+	            	        xAxis_Fx.setLowerBound(xAxis_Fx.getLowerBound() + xScaleFactor);
+	            	        xAxis_Fx.setUpperBound(xAxis_Fx.getUpperBound() - xScaleFactor);
+	            	        //y
+	            	        yAxis_Fx.setLowerBound(yAxis_Fx.getLowerBound() + yScaleFactor);
+	            	        yAxis_Fx.setUpperBound(yAxis_Fx.getUpperBound() - yScaleFactor);
+	            	        
+	            	    }
+	            	});
+	                
 	                /*// Hilarious working code for moving the points around on the chart (from the above stackoverflow post)
 	                node.setOnMouseDragged(e -> {
 	                    Point2D pointInScene = new Point2D(e.getSceneX(), e.getSceneY());
@@ -329,10 +369,12 @@ public class ReadFxPlot implements PlugIn {
         sc_Fx.setTitle(plotTitle);
         cursorCoords = new Label();
         
-        ///scene  = new Scene(sc_Fx, 900, 580);
         sc_Fx.setPrefSize(900, 500);
         sc_Fx.setStyle("-fx-border-color: black; -fx-border-insets: 0 4 0 4;"); //border insets top, right, bottom, left
-        //scene.getStylesheets().add("stylesheet.css");		//this is the recommended way to set javafx chart/gui visual parameters... but some nodes are not updated properly in my testing
+    	Node horizontalGridLines = sc_Fx.lookup(".chart-horizontal-grid-lines"); //see https://docs.oracle.com/javase/8/javafx/api/javafx/scene/doc-files/cssref.html
+			horizontalGridLines.setMouseTransparent(true);
+		Node verticalGridLines = sc_Fx.lookup(".chart-vertical-grid-lines");
+    		verticalGridLines.setMouseTransparent(true);
         
         scene  = new Scene(new Group());
         final VBox vbox = new VBox();
@@ -570,6 +612,74 @@ public class ReadFxPlot implements PlugIn {
 	        	multiEnabled = false;
         	}
         });
+        
+        //right clicking on the multipath area creates a dropdown menu, allowing an image stack or results table of the selected data to be created
+        multiPath.setOnMousePressed(e2 -> {
+        	if (e2.getClickCount() == 1 && e2.getButton() == MouseButton.SECONDARY) {
+	        	final ContextMenu exportMenu = new ContextMenu();
+	        	MenuItem toStack = new MenuItem("Data to stack");
+	        	MenuItem toTable = new MenuItem("Data to table");
+
+	        	if (WindowManager.getCurrentImage() == null || !(WindowManager.getCurrentImage()).isStack() || WindowManager.getCurrentImage().getStackSize() != Xarray.length) {
+        			toStack.setDisable(true);
+        			toStack.setText("Data to stack (Open and select a stack to enable)");
+        			toTable.setDisable(true);
+        			toTable.setText("Data to table (Open and select a stack to enable)");
+        			toStack.setStyle("-fx-stroke-color: rgba(100, 100, 100, 1)");	//disabling the menuitem overrides the colour, so this is not implemented
+        			toTable.setStyle("-fx-stroke-color: rgba(100, 100, 100, 1)");	//disabling the menuitem overrides the colour, so this is not implemented
+        		} else if (WindowManager.getCurrentImage() != null && (WindowManager.getCurrentImage()).isStack() && WindowManager.getCurrentImage().getStackSize() == (Xarray.length)) {
+        			toStack.setDisable(false);
+        			toStack.setText("Data to stack");
+        			toTable.setDisable(false);
+        			toTable.setText("Data to table");
+        			toStack.setStyle("-fx-stroke-color: rgba(0, 0, 0, 1)");
+        			toTable.setStyle("-fx-stroke-color: rgba(0, 0, 0, 1)");
+        		}
+	        	exportMenu.getItems().clear();
+	        	exportMenu.getItems().addAll(toStack, toTable);
+	        	exportMenu.show(sc_Fx, e2.getScreenX(), e2.getScreenY());
+	        	toStack.setOnAction(new EventHandler<ActionEvent>() {
+	        		 public void handle(ActionEvent event) {
+	        			 //ImagePlus stack3 = WindowManager.getCurrentImage();
+	        			 String titles[] = WindowManager.getImageTitles();
+	        			 if (!Arrays.stream(titles).anyMatch("Sub-stack"::equals) && WindowManager.getCurrentImage() != null && (WindowManager.getCurrentImage()).isStack() && WindowManager.getCurrentImage().getStackSize() == Xarray.length) {
+	        				 //int type = WindowManager.getCurrentImage().getType();
+	        				 //ImagePlus subStack = new ImagePlus();
+	        				 IJ.log("toStack was pressed.");
+	        			 }
+	        			 //stack3.setSlice(lookupArray[sc_Fx.getData().indexOf(series)][series.getData().indexOf(data)]);
+	        		}
+	        	});
+	        	toTable.setOnAction(new EventHandler<ActionEvent>() {
+	        		public void handle(ActionEvent event) {
+	        			IJ.log("toTable was pressed.");
+	        		}
+	        	});
+	        	e2.consume();
+        	}
+        	
+        	// recount the enclosed points after left clicking on the multiPath selection area 
+        	if (e2.getClickCount() == 1 && e2.getButton() == MouseButton.PRIMARY) {
+        		int areaNodes = 0;
+        		for (ScatterChart.Series<Number, Number> series : sc_Fx.getData()) {
+	            	for (Data<Number, Number> data : series.getData()) {
+		                Node node = data.getNode();
+
+	                	if (multiPath.contains(node.getBoundsInParent().getMinX()+xPathOffset, node.getBoundsInParent().getMinY()+yPathOffset) && node.isVisible()) {
+		                	areaNodes++;
+		                }
+	            	}
+            }
+            
+            if (areaNodes == 1) {
+            	IJ.log("1 point in the area.");
+            } else if (areaNodes > 1) {
+            	IJ.log(areaNodes+" points in the area.");
+            }
+        	}
+        	
+        });
+        
     }
     
     private static class SelectionModel {

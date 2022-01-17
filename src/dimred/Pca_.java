@@ -629,7 +629,7 @@ public class Pca_ implements PlugIn {
 	                node.setCursor(Cursor.HAND);
 	                node.setOnMouseClicked(e -> {
 	                	// when a point is selected, highlight the corresponding origin image in the input image stack, if it exists. Note: Perhaps display the image in a new window if a stack is not present.
-	                	if (WindowManager.getCurrentImage() != null && (WindowManager.getCurrentImage()).isStack() && WindowManager.getCurrentImage().getStackSize() == stack.getStackSize()) {
+	                	if (WindowManager.getCurrentImage() != null && (WindowManager.getCurrentImage()).isStack() && WindowManager.getCurrentImage().getStackSize() == Pcomp1.length) {
 	                		ImagePlus stack2 = WindowManager.getCurrentImage();
 	                		stack2.setSlice(lookupArray[sc.getData().indexOf(series)][series.getData().indexOf(data)]);	//note: add a null condition check for when a stack wasn't the input
 	                	}
@@ -683,6 +683,10 @@ public class Pca_ implements PlugIn {
         sc_Fx.setPrefSize(900, 500);
         sc_Fx.setStyle("-fx-border-color: black; -fx-border-insets: 0 4 0 4;"); //border insets top, right, bottom, left
         //scene.getStylesheets().add("stylesheet.css");		//this is the recommended way to set javafx chart/gui visual parameters... but some nodes are not updated properly in my testing
+    	Node horizontalGridLines = sc_Fx.lookup(".chart-horizontal-grid-lines"); //see https://docs.oracle.com/javase/8/javafx/api/javafx/scene/doc-files/cssref.html
+			horizontalGridLines.setMouseTransparent(true);
+		Node verticalGridLines = sc_Fx.lookup(".chart-vertical-grid-lines");
+    		verticalGridLines.setMouseTransparent(true);
         
         scene  = new Scene(new Group());
         final VBox vbox = new VBox();
@@ -795,7 +799,8 @@ public class Pca_ implements PlugIn {
     	multiPath.setStroke(javafx.scene.paint.Color.BLUE);
     	multiPath.setStrokeWidth(1);
     	multiPath.setStrokeLineCap(StrokeLineCap.ROUND);
-    	multiPath.setFill(javafx.scene.paint.Color.LIGHTBLUE.deriveColor(0, 1.2, 1, 0.6));  	
+    	multiPath.setFill(javafx.scene.paint.Color.LIGHTBLUE.deriveColor(0, 1.2, 1, 0.6));
+    	/*
     	multiPath.setOnMousePressed(new EventHandler<MouseEvent>() {
     	    public void handle(MouseEvent event) {
     	    	if (event.getButton() == MouseButton.SECONDARY) {
@@ -805,6 +810,7 @@ public class Pca_ implements PlugIn {
     	    	event.consume();
     	    }
     	});
+    	*/
     	
         multiEnabled = false;
         //Could go here.. optional inclusion of array wrapper for mouseStartX and Y if I do not want to initialise them as global variables
@@ -920,6 +926,75 @@ public class Pca_ implements PlugIn {
 	        	multiEnabled = false;
         	}
         });
+        
+        //right clicking on the multipath area creates a dropdown menu, allowing an image stack or results table of the selected data to be created
+        multiPath.setOnMousePressed(e2 -> {
+        	if (e2.getClickCount() == 1 && e2.getButton() == MouseButton.SECONDARY) {
+	        	final ContextMenu exportMenu = new ContextMenu();
+	        	MenuItem toStack = new MenuItem("Data to stack");
+	        	MenuItem toTable = new MenuItem("Data to table");
+
+	        	if (WindowManager.getCurrentImage() == null || !(WindowManager.getCurrentImage()).isStack() || WindowManager.getCurrentImage().getStackSize() != Pcomp1.length) {
+        		//if (!Stack.exists()) {
+        			toStack.setDisable(true);
+        			toStack.setText("Data to stack (Open and select a stack to enable)");
+        			toTable.setDisable(true);
+        			toTable.setText("Data to table (Open and select a stack to enable)");
+        			toStack.setStyle("-fx-stroke-color: rgba(100, 100, 100, 1)");	//disabling the menuitem overrides the colour, so this is not implemented
+        			toTable.setStyle("-fx-stroke-color: rgba(100, 100, 100, 1)");	//disabling the menuitem overrides the colour, so this is not implemented
+        		} else if (WindowManager.getCurrentImage() != null && (WindowManager.getCurrentImage()).isStack() && WindowManager.getCurrentImage().getStackSize() == (Pcomp1.length)) {
+        		//} else if (Stack.exists()) {
+        			toStack.setDisable(false);
+        			toStack.setText("Data to stack");
+        			toTable.setDisable(false);
+        			toTable.setText("Data to table");
+        			toStack.setStyle("-fx-stroke-color: rgba(0, 0, 0, 1)");
+        			toTable.setStyle("-fx-stroke-color: rgba(0, 0, 0, 1)");
+        		}
+	        	exportMenu.getItems().clear();
+	        	exportMenu.getItems().addAll(toStack, toTable);
+	        	exportMenu.show(sc_Fx, e2.getScreenX(), e2.getScreenY());
+	        	toStack.setOnAction(new EventHandler<ActionEvent>() {
+	        		 public void handle(ActionEvent event) {
+	        			 //ImagePlus stack3 = WindowManager.getCurrentImage();
+	        			 String titles[] = WindowManager.getImageTitles();
+	        			 if (!Arrays.stream(titles).anyMatch("Sub-stack"::equals) && WindowManager.getCurrentImage() != null && (WindowManager.getCurrentImage()).isStack() && WindowManager.getCurrentImage().getStackSize() == Pcomp1.length) {
+	        				 //int type = WindowManager.getCurrentImage().getType();
+	        				 //ImagePlus subStack = new ImagePlus();
+	        				 IJ.log("toStack was pressed.");
+	        			 }
+	        			 //stack3.setSlice(lookupArray[sc_Fx.getData().indexOf(series)][series.getData().indexOf(data)]);
+	        		}
+	        	});
+	        	toTable.setOnAction(new EventHandler<ActionEvent>() {
+	        		public void handle(ActionEvent event) {
+	        			IJ.log("toTable was pressed.");
+	        		}
+	        	});
+	        	e2.consume();
+        	}
+        	
+        	// recount the enclosed points after left clicking on the multiPath selection area 
+        	if (e2.getClickCount() == 1 && e2.getButton() == MouseButton.PRIMARY) {
+        		int areaNodes = 0;
+        		for (ScatterChart.Series<Number, Number> series : sc_Fx.getData()) {
+	            	for (Data<Number, Number> data : series.getData()) {
+		                Node node = data.getNode();
+
+	                	if (multiPath.contains(node.getBoundsInParent().getMinX()+xPathOffset, node.getBoundsInParent().getMinY()+yPathOffset) && node.isVisible()) {
+		                	areaNodes++;
+		                }
+	            	}
+            }
+            
+            if (areaNodes == 1) {
+            	IJ.log("1 point in the area.");
+            } else if (areaNodes > 1) {
+            	IJ.log(areaNodes+" points in the area.");
+            }
+        	}
+        });
+        
     }
     
     private static class SelectionModel {

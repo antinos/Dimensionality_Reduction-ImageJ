@@ -453,7 +453,7 @@ public class Umap_ implements PlugIn {
     		//scatter.setLegend("", Plot.AUTO_POSITION);	//automatically add the legend... off by default as it runs off the chart when many labels are present
     		//IJ.log("File list: "+Arrays.toString(Filelist));
     	}
-    		
+    	
     	/*
     	//Code block for updating the legend from https://stackoverflow.com/questions/12197877/javafx-linechart-legend-style... did not work for me but is an interesting method to access chart subcomponents
     	Platform.runLater(new Runnable() {
@@ -696,11 +696,51 @@ public class Umap_ implements PlugIn {
 	                node.setCursor(Cursor.HAND);
 	                node.setOnMouseClicked(e -> {
 	                	// when a point is selected, highlight a corresponding image in the input image stack (or another if wanted and its the same size), if it exists. Note: Perhaps display the image in a new window if a stack is not present.
-	                	if (WindowManager.getCurrentImage() != null && (WindowManager.getCurrentImage()).isStack() && WindowManager.getCurrentImage().getStackSize() == stack.getStackSize()) {
+	                	//NOTE originally getStackSize() was checked against stack.getStackSize(). This worked until the stack was closed. Even with a new image open, this value would be locked to 1.
+	                	if (WindowManager.getCurrentImage() != null && (WindowManager.getCurrentImage()).isStack() && WindowManager.getCurrentImage().getStackSize() == Xarray.length) {
 	                		ImagePlus stack2 = WindowManager.getCurrentImage();
 	                		stack2.setSlice(lookupArray[sc.getData().indexOf(series)][series.getData().indexOf(data)]);	//note: add a null condition check for when a stack wasn't the input
 	                	}
 	                });
+	                
+	                //scroll zoom method over nodes... mouse scroll wheel zoom over the background is handled elsewhere
+	            	node.setOnScroll(new EventHandler<ScrollEvent>() {
+	            	    public void handle(ScrollEvent event) {
+	            	        event.consume();
+	            	        if (event.getDeltaY() == 0) {
+	            	            return;
+	            	        }
+	            	        
+	            	        // move chart area-view closer to node position
+	            	        double rawX = node.getBoundsInParent().getMinX();
+	            	        double rawY = node.getBoundsInParent().getMinY();
+	            	        double xPosition = xAxis_Fx.getValueForDisplay(rawX).doubleValue();
+	            	        double yPosition = yAxis_Fx.getValueForDisplay(rawY).doubleValue();
+	            	        double xDisplace = xPosition-((((xAxis_Fx.getUpperBound()-xAxis_Fx.getLowerBound())/2)+xAxis_Fx.getLowerBound()));
+	            	        xDisplace = xDisplace/4;	//fudge factor to make chart area moving less jumpy
+	            	        double yDisplace = yPosition-((((yAxis_Fx.getUpperBound()-yAxis_Fx.getLowerBound())/2)+yAxis_Fx.getLowerBound()));
+	            	        yDisplace = yDisplace/4;	//fudge factor to make chart area moving less jumpy
+	            	        xAxis_Fx.setLowerBound(xAxis_Fx.getLowerBound()+xDisplace);
+	            	        xAxis_Fx.setUpperBound(xAxis_Fx.getUpperBound()+xDisplace);
+	            	        yAxis_Fx.setLowerBound(yAxis_Fx.getLowerBound()+yDisplace);
+	            	        yAxis_Fx.setUpperBound(yAxis_Fx.getUpperBound()+yDisplace); 	        
+	            	        
+	            	        // zoom in 10%
+	            	        double SCALE_DELTA_X = (xAxis_Fx.getUpperBound()-xAxis_Fx.getLowerBound())*0.1;
+	            	        double SCALE_DELTA_Y = (yAxis_Fx.getUpperBound()-yAxis_Fx.getLowerBound())*0.1;
+	            	        xAxis_Fx.setAutoRanging(false); 
+	            	        yAxis_Fx.setAutoRanging(false);
+	            	        double xScaleFactor = (event.getDeltaY() > 0) ? SCALE_DELTA_X : SCALE_DELTA_X * (-1);
+	            	        double yScaleFactor = (event.getDeltaY() > 0) ? SCALE_DELTA_Y : SCALE_DELTA_Y * (-1);
+	            	        //x
+	            	        xAxis_Fx.setLowerBound(xAxis_Fx.getLowerBound() + xScaleFactor);
+	            	        xAxis_Fx.setUpperBound(xAxis_Fx.getUpperBound() - xScaleFactor);
+	            	        //y
+	            	        yAxis_Fx.setLowerBound(yAxis_Fx.getLowerBound() + yScaleFactor);
+	            	        yAxis_Fx.setUpperBound(yAxis_Fx.getUpperBound() - yScaleFactor);
+	            	        
+	            	    }
+	            	});
 	                
 	                /*
 	                //add nodePaths to each node here, so that we can look for overlaps with hand-drawn selection areas later
@@ -762,7 +802,11 @@ public class Umap_ implements PlugIn {
         sc_Fx.setPrefSize(900, 500);
         sc_Fx.setStyle("-fx-border-color: black; -fx-border-insets: 0 4 0 4;"); //border insets top, right, bottom, left
         //scene.getStylesheets().add("stylesheet.css");		//this is the recommended way to set javafx chart/gui visual parameters... but some nodes are not updated properly in my testing
-        
+    	Node horizontalGridLines = sc_Fx.lookup(".chart-horizontal-grid-lines"); //see https://docs.oracle.com/javase/8/javafx/api/javafx/scene/doc-files/cssref.html
+    		horizontalGridLines.setMouseTransparent(true);
+    	Node verticalGridLines = sc_Fx.lookup(".chart-vertical-grid-lines");
+	    	verticalGridLines.setMouseTransparent(true);
+    		
         scene  = new Scene(new Group());
         final VBox vbox = new VBox();
         final HBox hbox = new HBox();
@@ -770,7 +814,6 @@ public class Umap_ implements PlugIn {
         pathPane = new Pane();
 	        pathPane.prefWidthProperty().bind(vbox.widthProperty());
 	        pathPane.prefHeightProperty().bind(vbox.heightProperty());
-	        //pathPane.setStyle("-fx-background-color: rgba(0, 0, 0, 0)");
 	        pathPane.setPickOnBounds(false);
         hbox.setSpacing(10);
         hbox.getChildren().add(cursorCoords);
@@ -791,7 +834,6 @@ public class Umap_ implements PlugIn {
         vbox.prefWidthProperty().bind(scene.widthProperty());
         vbox.prefHeightProperty().bind(scene.heightProperty());
         ((Group)scene.getRoot()).getChildren().add(vbox);
-        //spane.getChildren().add(multiPath);
         spane.getChildren().add(pathPane);
         pathPane.getChildren().add(multiPath);
         
@@ -799,7 +841,6 @@ public class Umap_ implements PlugIn {
         //multiPath.setScaleX(1);
         //multiPath.setScaleY(1);
         //((Group)scene.getRoot()).getChildren().add(multiPath);
-
         
         fxPanel.setScene(scene);
     }
@@ -834,7 +875,7 @@ public class Umap_ implements PlugIn {
     
     private static void zoomAndPan() {
         //adapted from https://stackoverflow.com/questions/22099650/zoom-bar-chart-with-mouse-wheel
-    	Node chartBackground = sc_Fx.lookup(".chart-plot-background");			///////////////////////////////////////////////////////////////////////////////////
+    	Node chartBackground = sc_Fx.lookup(".chart-plot-background");
     	chartBackground.setOnScroll(new EventHandler<ScrollEvent>() {
     	    public void handle(ScrollEvent event) {
     	        event.consume();
@@ -961,7 +1002,8 @@ public class Umap_ implements PlugIn {
     	multiPath.setStroke(javafx.scene.paint.Color.BLUE);
     	multiPath.setStrokeWidth(1);
     	multiPath.setStrokeLineCap(StrokeLineCap.ROUND);
-    	multiPath.setFill(javafx.scene.paint.Color.LIGHTBLUE.deriveColor(0, 1.2, 1, 0.6));  	
+    	multiPath.setFill(javafx.scene.paint.Color.LIGHTBLUE.deriveColor(0, 1.2, 1, 0.6));
+    	/*
     	multiPath.setOnMousePressed(new EventHandler<MouseEvent>() {
     	    public void handle(MouseEvent event) {
     	    	if (event.getButton() == MouseButton.SECONDARY) {
@@ -971,6 +1013,7 @@ public class Umap_ implements PlugIn {
     	    	event.consume();
     	    }
     	});
+    	*/
     	
         multiEnabled = false;
         //Could go here.. optional inclusion of array wrapper for mouseStartX and Y if I do not want to initialise them as global variables
@@ -1068,6 +1111,9 @@ public class Umap_ implements PlugIn {
 			                	//IJ.log("Overlap coordinates = "+Double.toString(node.getBoundsInParent().getMinX())+", "+Double.toString(node.getBoundsInParent().getMinY()));
 			                	//ImagePlus stack3 = WindowManager.getCurrentImage();
 			                	//stack3.setSlice(lookupArray[sc_Fx.getData().indexOf(series)][series.getData().indexOf(data)]);
+			                	//If (){
+			                		//
+			                	//}
 			                }
 			                //int positionInStack = lookupArray[sc_Fx.getData().indexOf(series)][series.getData().indexOf(data)];
 		            	}
@@ -1086,6 +1132,75 @@ public class Umap_ implements PlugIn {
 	        	multiEnabled = false;
         	}
         });
+        
+        //right clicking on the multipath area creates a dropdown menu, allowing an image stack or results table of the selected data to be created
+        multiPath.setOnMousePressed(e2 -> {
+        	if (e2.getClickCount() == 1 && e2.getButton() == MouseButton.SECONDARY) {
+	        	final ContextMenu exportMenu = new ContextMenu();
+	        	MenuItem toStack = new MenuItem("Data to stack");
+	        	MenuItem toTable = new MenuItem("Data to table");
+
+	        	if (WindowManager.getCurrentImage() == null || !(WindowManager.getCurrentImage()).isStack() || WindowManager.getCurrentImage().getStackSize() != Xarray.length) {
+        		//if (!Stack.exists()) {
+        			toStack.setDisable(true);
+        			toStack.setText("Data to stack (Open and select a stack to enable)");
+        			toTable.setDisable(true);
+        			toTable.setText("Data to table (Open and select a stack to enable)");
+        			toStack.setStyle("-fx-stroke-color: rgba(100, 100, 100, 1)");	//disabling the menuitem overrides the colour, so this is not implemented
+        			toTable.setStyle("-fx-stroke-color: rgba(100, 100, 100, 1)");	//disabling the menuitem overrides the colour, so this is not implemented
+        		} else if (WindowManager.getCurrentImage() != null && (WindowManager.getCurrentImage()).isStack() && WindowManager.getCurrentImage().getStackSize() == (Xarray.length)) {
+        		//} else if (Stack.exists()) {
+        			toStack.setDisable(false);
+        			toStack.setText("Data to stack");
+        			toTable.setDisable(false);
+        			toTable.setText("Data to table");
+        			toStack.setStyle("-fx-stroke-color: rgba(0, 0, 0, 1)");
+        			toTable.setStyle("-fx-stroke-color: rgba(0, 0, 0, 1)");
+        		}
+	        	exportMenu.getItems().clear();
+	        	exportMenu.getItems().addAll(toStack, toTable);
+	        	exportMenu.show(sc_Fx, e2.getScreenX(), e2.getScreenY());
+	        	toStack.setOnAction(new EventHandler<ActionEvent>() {
+	        		 public void handle(ActionEvent event) {
+	        			 //ImagePlus stack3 = WindowManager.getCurrentImage();
+	        			 String titles[] = WindowManager.getImageTitles();
+	        			 if (!Arrays.stream(titles).anyMatch("Sub-stack"::equals) && WindowManager.getCurrentImage() != null && (WindowManager.getCurrentImage()).isStack() && WindowManager.getCurrentImage().getStackSize() == Xarray.length) {
+	        				 //int type = WindowManager.getCurrentImage().getType();
+	        				 //ImagePlus subStack = new ImagePlus();
+	        				 IJ.log("toStack was pressed.");
+	        			 }
+	        			 //stack3.setSlice(lookupArray[sc_Fx.getData().indexOf(series)][series.getData().indexOf(data)]);
+	        		}
+	        	});
+	        	toTable.setOnAction(new EventHandler<ActionEvent>() {
+	        		public void handle(ActionEvent event) {
+	        			IJ.log("toTable was pressed.");
+	        		}
+	        	});
+	        	e2.consume();
+        	}
+        	
+        	// recount the enclosed points after left clicking on the multiPath selection area 
+        	if (e2.getClickCount() == 1 && e2.getButton() == MouseButton.PRIMARY) {
+        		int areaNodes = 0;
+        		for (ScatterChart.Series<Number, Number> series : sc_Fx.getData()) {
+	            	for (Data<Number, Number> data : series.getData()) {
+		                Node node = data.getNode();
+
+	                	if (multiPath.contains(node.getBoundsInParent().getMinX()+xPathOffset, node.getBoundsInParent().getMinY()+yPathOffset) && node.isVisible()) {
+		                	areaNodes++;
+		                }
+	            	}
+            }
+            
+            if (areaNodes == 1) {
+            	IJ.log("1 point in the area.");
+            } else if (areaNodes > 1) {
+            	IJ.log(areaNodes+" points in the area.");
+            }
+        	}
+        });
+        
     }
     
     private static class SelectionModel {
@@ -1132,156 +1247,5 @@ public class Umap_ implements PlugIn {
 
     }
     
-    
-    /*
-	private static void nodeSelection() {
-		Node chartBackground = sc_Fx.lookup(".chart-plot-background");
-		
-		SelectionModel selectionModel = new SelectionModel();
-	    //DragMouseGestures dragMouseGestures = new DragMouseGestures();
-		
-		final Random rnd = new Random();
-		
-		new RubberBandSelection(sc_Fx);
-		
-		class RubberBandSelection {
-
-	        final DragContext dragContext = new DragContext();
-	        Rectangle rect;
-	        Path path;
-
-	        //Pane group;
-	        boolean enabled = false;
-
-	        public RubberBandSelection(ScatterChart sc_Fx) {
-
-	            this.sc_Fx = sc_Fx;
-
-	            rect = new Rectangle( 0,0,0,0);
-	            rect.setStroke(javafx.scene.paint.Color.BLUE);
-	            rect.setStrokeWidth(1);
-	            rect.setStrokeLineCap(StrokeLineCap.ROUND);
-	            rect.setFill(javafx.scene.paint.Color.LIGHTBLUE.deriveColor(0, 1.2, 1, 0.6));
-
-	            sc_Fx.addEventHandler(MouseEvent.MOUSE_PRESSED, onMousePressedEventHandler);
-	            sc_Fx.addEventHandler(MouseEvent.MOUSE_DRAGGED, onMouseDraggedEventHandler);
-	            sc_Fx.addEventHandler(MouseEvent.MOUSE_RELEASED, onMouseReleasedEventHandler);
-
-	        }
-
-	        EventHandler<MouseEvent> onMousePressedEventHandler = new EventHandler<MouseEvent>() {
-
-	            @Override
-	            public void handle(MouseEvent event) {
-
-	                // simple flag to prevent multiple handling of this event or we'd get an exception because rect is already on the scene
-	                // eg if you drag with left mouse button and while doing that click the right mouse button
-	                if( enabled)
-	                    return;
-
-	                dragContext.mouseAnchorX = event.getSceneX();
-	                dragContext.mouseAnchorY = event.getSceneY();
-
-	                rect.setX(dragContext.mouseAnchorX);
-	                rect.setY(dragContext.mouseAnchorY);
-	                rect.setWidth(0);
-	                rect.setHeight(0);
-
-	                sc_Fx.getChildren().add( rect);
-
-	                event.consume();
-
-	                enabled = true;
-	            }
-	        };
-
-	        EventHandler<MouseEvent> onMouseReleasedEventHandler = new EventHandler<MouseEvent>() {
-
-	            @Override
-	            public void handle(MouseEvent event) {
-
-	                if( !event.isShiftDown() && !event.isControlDown()) {
-	                    selectionModel.clear();
-	                }
-
-	                for( Node node: group.getChildren()) {
-
-	                    if( node instanceof Selectable) {
-	                        if( node.getBoundsInParent().intersects( rect.getBoundsInParent())) {
-
-	                            if( event.isShiftDown()) {
-
-	                                selectionModel.add( node);
-
-	                            } else if( event.isControlDown()) {
-
-	                                if( selectionModel.contains( node)) {
-	                                    selectionModel.remove( node);
-	                                } else {
-	                                    selectionModel.add( node);
-	                                }
-	                            } else {
-	                                selectionModel.add( node);
-	                            }
-
-	                        }
-	                    }
-
-	                }
-
-	                selectionModel.log();
-
-	                rect.setX(0);
-	                rect.setY(0);
-	                rect.setWidth(0);
-	                rect.setHeight(0);
-
-	                group.getChildren().remove( rect);
-
-	                event.consume();
-
-	                enabled = false;
-	            }
-	        };
-
-	        EventHandler<MouseEvent> onMouseDraggedEventHandler = new EventHandler<MouseEvent>() {
-
-	            @Override
-	            public void handle(MouseEvent event) {
-
-	                double offsetX = event.getSceneX() - dragContext.mouseAnchorX;
-	                double offsetY = event.getSceneY() - dragContext.mouseAnchorY;
-
-	                if( offsetX > 0)
-	                    rect.setWidth( offsetX);
-	                else {
-	                    rect.setX(event.getSceneX());
-	                    rect.setWidth(dragContext.mouseAnchorX - rect.getX());
-	                }
-
-	                if( offsetY > 0) {
-	                    rect.setHeight( offsetY);
-	                } else {
-	                    rect.setY(event.getSceneY());
-	                    rect.setHeight(dragContext.mouseAnchorY - rect.getY());
-	                }
-
-	                event.consume();
-
-	            }
-	        };
-
-	        private final class DragContext {
-
-	            public double mouseAnchorX;
-	            public double mouseAnchorY;
-
-
-	        }
-	    }
-
-		 
-	}
-	*/
     
 }

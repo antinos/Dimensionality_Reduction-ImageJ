@@ -45,7 +45,8 @@ public class SaveFxPlot implements PlugIn {
 			xTitle = Pca_.xTitle;
 			yTitle = Pca_.yTitle;
 			plotTitle = Pca_.plotTitle;
-			stackSize = Pca_.stack.getStackSize();
+			//stackSize = Pca_.stack.getStackSize();
+			stackSize = Pca_.Pcomp1.length;
 		} else if (Tsne_.Xarray != null) {
 			//fxPanelRef = Tsne_.fxPanelRef;
 			labelsArray = Tsne_.labelsArray;
@@ -57,7 +58,8 @@ public class SaveFxPlot implements PlugIn {
 			xTitle = Tsne_.xTitle;
 			yTitle = Tsne_.yTitle;
 			plotTitle = Tsne_.plotTitle;
-			stackSize = Tsne_.stack.getStackSize();
+			//stackSize = Tsne_.stack.getStackSize();
+			stackSize = Tsne_.Xarray.length;
 		} else if (Umap_.Xarray != null) {
 			//fxPanelRef = Umap_.fxPanelRef;
 			labelsArray = Umap_.labelsArray;
@@ -69,7 +71,8 @@ public class SaveFxPlot implements PlugIn {
 			xTitle = Umap_.xTitle;
 			yTitle = Umap_.yTitle;
 			plotTitle = Umap_.plotTitle;
-			stackSize = Umap_.stack.getStackSize();
+			//stackSize = Umap_.stack.getStackSize();
+			stackSize = Umap_.Xarray.length;
 		} else {
 			plotExists = 0;
 		}
