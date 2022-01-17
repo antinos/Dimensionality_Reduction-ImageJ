@@ -1,5 +1,5 @@
 # Dimensionality Reduction (v1.0.4)
-*version release date:13/01/22*</br>
+*version release date:17/01/22*</br>
 
 This plugin captures data from an open image stack or folder of images and performs one of three dimensionality reduction techniques (PCA, t-SNE, or UMAP) to project the high-dimensional data into a lower dimensional (2D) space that is then plotted onto an ImageJ scatter-plot. Under-the-hood, the plugin uses two really-awesome libraries (t-SNE: Leif Jonsson's [pure Java implementation of Van Der Maaten and Hinton's t-sne clustering algorithm](https://github.com/lejon/T-SNE-Java); and UMAP: Jesse Paquette's (of [tag.bio](https://tag.bio/)) [Java implementation of UMAP](https://github.com/tag-bio/umap-java), based on the reference [Python implementation](https://github.com/lmcinnes/umap)). Both are distributed under open-source licences, so even if this plugin doesn't suit you, perhaps their libraries can find a place in your respective projects!<br/>
 
@@ -118,13 +118,16 @@ run("PCA", "pca_comp=10 pc_x=1 pc_y=5 eigen_out=10 label_path=[C:/Users/Antinos/
 * Clicking on individual plot points will highlight the corresponding image in the image stack. If you select another stack of images, this will be used by the plugin if it contains the same number of slices.
 * Right-clicking on the graph window will allow the user to copy an image of the plot to the clipboard or to save a fully interactive version of the plot to file.
 * Plot save and load functions are also available in the GUI dropdown menu: Plugins>Dimensionality Reduction>...
+* Dragging with the left mouse button will allow a freehand lasso selection area to be drawn. Visible datapoints will be automatically enumerated in this area.
+
+<img src="src/main/resources/pics/Dimred_Lasso_Selection_Enumeration_And_Node_Stack_Relation.png" width="690" />
 
 ---
 ## Installation and comments
 **Download the plugin from my [googledrive](https://drive.google.com/drive/folders/100w43HWtGFJiPstJmjNOZ-YH9ZFMIy4X?usp=sharing)**. I have also included some test image-stacks and accompanying label.csv files to play with.
 
 **To install the plugin:**
-* **copy 'Dimensionality_Reduction-1.0.3.jar' to your Fiji plugins folder.**
+* **copy 'Dimensionality_Reduction-1.0.x.jar' to your Fiji plugins folder.**
 * **copy 'javafx.base.jar', 'javafx.swing.jar', javafx.graphics.jar', and 'javafx.controls.jar' to your Fiji jars folder.** (required from v1.0.3.)
 
 *(Technical note: in the future, I may try to Uber-jar the dependency files)*
