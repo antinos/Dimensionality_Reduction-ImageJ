@@ -634,6 +634,46 @@ public class Pca_ implements PlugIn {
 	                		stack2.setSlice(lookupArray[sc.getData().indexOf(series)][series.getData().indexOf(data)]);	//note: add a null condition check for when a stack wasn't the input
 	                	}
 	                });
+	                
+	                //scroll zoom method over nodes... mouse scroll wheel zoom over the background is handled elsewhere
+	            	node.setOnScroll(new EventHandler<ScrollEvent>() {
+	            	    public void handle(ScrollEvent event) {
+	            	        event.consume();
+	            	        if (event.getDeltaY() == 0) {
+	            	            return;
+	            	        }
+	            	        
+	            	        // move chart area-view closer to node position
+	            	        double rawX = node.getBoundsInParent().getMinX();
+	            	        double rawY = node.getBoundsInParent().getMinY();
+	            	        double xPosition = xAxis_Fx.getValueForDisplay(rawX).doubleValue();
+	            	        double yPosition = yAxis_Fx.getValueForDisplay(rawY).doubleValue();
+	            	        double xDisplace = xPosition-((((xAxis_Fx.getUpperBound()-xAxis_Fx.getLowerBound())/2)+xAxis_Fx.getLowerBound()));
+	            	        xDisplace = xDisplace/4;	//fudge factor to make chart area moving less jumpy
+	            	        double yDisplace = yPosition-((((yAxis_Fx.getUpperBound()-yAxis_Fx.getLowerBound())/2)+yAxis_Fx.getLowerBound()));
+	            	        yDisplace = yDisplace/4;	//fudge factor to make chart area moving less jumpy
+	            	        xAxis_Fx.setLowerBound(xAxis_Fx.getLowerBound()+xDisplace);
+	            	        xAxis_Fx.setUpperBound(xAxis_Fx.getUpperBound()+xDisplace);
+	            	        yAxis_Fx.setLowerBound(yAxis_Fx.getLowerBound()+yDisplace);
+	            	        yAxis_Fx.setUpperBound(yAxis_Fx.getUpperBound()+yDisplace); 	        
+	            	        
+	            	        // zoom in 10%
+	            	        double SCALE_DELTA_X = (xAxis_Fx.getUpperBound()-xAxis_Fx.getLowerBound())*0.1;
+	            	        double SCALE_DELTA_Y = (yAxis_Fx.getUpperBound()-yAxis_Fx.getLowerBound())*0.1;
+	            	        xAxis_Fx.setAutoRanging(false); 
+	            	        yAxis_Fx.setAutoRanging(false);
+	            	        double xScaleFactor = (event.getDeltaY() > 0) ? SCALE_DELTA_X : SCALE_DELTA_X * (-1);
+	            	        double yScaleFactor = (event.getDeltaY() > 0) ? SCALE_DELTA_Y : SCALE_DELTA_Y * (-1);
+	            	        //x
+	            	        xAxis_Fx.setLowerBound(xAxis_Fx.getLowerBound() + xScaleFactor);
+	            	        xAxis_Fx.setUpperBound(xAxis_Fx.getUpperBound() - xScaleFactor);
+	            	        //y
+	            	        yAxis_Fx.setLowerBound(yAxis_Fx.getLowerBound() + yScaleFactor);
+	            	        yAxis_Fx.setUpperBound(yAxis_Fx.getUpperBound() - yScaleFactor);
+	            	        
+	            	    }
+	            	});
+	                
 	                /*// Hilarious working code for moving the points around on the chart (from the above stackoverflow post)
 	                node.setOnMouseDragged(e -> {
 	                    Point2D pointInScene = new Point2D(e.getSceneX(), e.getSceneY());
