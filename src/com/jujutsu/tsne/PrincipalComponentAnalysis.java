@@ -27,6 +27,8 @@ import org.org2.ejml.dense.row.SingularOps_DDRM;
 import org.org2.ejml.dense.row.factory.DecompositionFactory_DDRM;
 import org.org2.ejml.interfaces.decomposition.SingularValueDecomposition;
 
+import ij.IJ;
+
 /**
  * <p>
  * The following is a simple example of how to perform basic principal component analysis in EJML.
@@ -62,7 +64,10 @@ public class PrincipalComponentAnalysis {
     
     // U
     private DMatrixRMaj U;
-
+    
+    // W
+    private DMatrixRMaj W;
+    
     // how many principal components are used
     private int numComponents;
 
@@ -149,7 +154,7 @@ public class PrincipalComponentAnalysis {
             throw new RuntimeException("SVD failed");
 
         V_t = svd.getV(null,true);
-        DMatrixRMaj W = svd.getW(null);
+        W = svd.getW(null);
         U = svd.getU(null, false);
 
         // Singular values are in an arbitrary order initially
@@ -215,6 +220,44 @@ public class PrincipalComponentAnalysis {
         CommonOps_DDRM.add(s,mean,s);
 
         return s.data;
+    }
+    
+    public double[] eigenUToSampleSpace( double[] eigenData ) {
+    	IJ.log("U cols = "+Double.toString(V_t.getNumCols())); //4096
+    	IJ.log("U rows = "+Double.toString(V_t.getNumRows())); //2
+    	IJ.log("numComponents = "+Integer.toString(numComponents)); //2
+        if( eigenData.length != V_t.getNumCols() )
+            throw new IllegalArgumentException("Unexpected sample length");
+
+        DMatrixRMaj s = new DMatrixRMaj(V_t.getNumCols(),1);
+        DMatrixRMaj r = DMatrixRMaj.wrap(numComponents,1,eigenData);
+        
+        CommonOps_DDRM.multTransA(V_t,r,s);
+        
+        DMatrixRMaj mean = DMatrixRMaj.wrap(V_t.getNumCols(),1,this.mean);
+        CommonOps_DDRM.add(s,mean,r);
+
+        return s.data;
+    }
+    
+    public double getMeanU( int i ) {
+        if( i >= U.getNumCols() )
+            throw new IllegalArgumentException("Mean value must be within the sample range (stack number)");
+        
+        double[] meanU = new double[A.getNumRows()];
+        //IJ.log("MeanU length = "+Integer.toString(meanU.length)); //
+        
+        // compute the mean of all the samples
+        for( int x = 0; x < meanU.length; x++ ) {	//400
+            for( int y = 0; y < A.getNumCols(); y++ ) { //4096
+                meanU[x] += A.get(x,y);
+            }
+        }
+        for( int j = 0; j < meanU.length; j++ ) {
+            meanU[j] /= A.getNumCols();
+        }       
+        
+        return meanU[i];
     }
 
 
@@ -313,5 +356,16 @@ public class PrincipalComponentAnalysis {
         return v.data;
     }
     */
+    
+    public double[] getW() {
+        
+        //DMatrixRMaj w = new DMatrixRMaj(W.numRows, 1);//
+        DMatrixRMaj w = new DMatrixRMaj(W.numRows, W.numCols);
+        //CommonOps_DDRM.extract(W, 0, A.numRows, which, which + 1, u, 0, 0);
+        
+        
+        
+        return w.data;
+    }
     
 }

@@ -103,6 +103,8 @@ public class Pca_ implements PlugIn {
 	static double yPathOffset = 0;
     static double mouseStartX;
     static double mouseStartY;
+    static int areaNodes;	//count of points within a lasso selection
+    static ArrayList<Integer> pointsInLasso = new ArrayList<Integer>();
 	
 	// Options to use during the run. Defaults for some but otherwise populated when parseOptions() is called.
     private String inputFolderPath;
@@ -113,7 +115,11 @@ public class Pca_ implements PlugIn {
     private static int pcompY = 2;
     private String ranSeed;
 		private int seed = 5;
+	private boolean outputCSV = false; //create a CSV copy of the dimensionality-reduction output XYs on the users desktop.
 	private boolean suppressStackAsk = false;
+	private boolean suppressFx = false;
+    //private boolean logTransform = false;
+    //private boolean cenAndScale = false;
 	
     // Variables and main() method for testing in IDEs.
     private static String debugOptions = null;
@@ -322,40 +328,52 @@ public class Pca_ implements PlugIn {
 	    		}
 	    		if (eigen_out > 0 && eigen_out <= pca_comp) {
 	    			double[] eigenX = pca.getBasisVector(eigen_out-1);
+	    			//eigenX = pca.eigenUToSampleSpace(eigenX);
     				ImagePlus outputPlus = NewImage.createImage("Eigenvector " + String.valueOf(eigen_out), width, height, 1, bitD, NewImage.FILL_BLACK);
     				ImageProcessor outputProc = outputPlus.getProcessor();
-
+    				
+    				IJ.log("mean["+Integer.toString(eigen_out)+"] = " + Double.toString(pca.getMeanU(eigen_out-1)));
+    				
     				if (eigenX.length != (width*height)) {
     					IJ.log("Error: could not reconstruct eigenvector " + String.valueOf(eigen_out) + " as an image, as its length does not equal the orginal image width*height.");
     				} else {
 	    				for (int i = 0; i < height; i++) {
 	    					for (int j = 0; j < width; j++) {
-	    						outputProc.setf(j, i, (float) (eigenX[j+(i*width)])*5000);	//*5000 is a dirty fudge factor. This isn't what you are meant to do to get eigenvectors but the output is visually pleasing for 8-bit eigenfaces.
+	    						//outputProc.setf(j, i, (float) ((eigenX[j+(i*width)])+pca.getMeanU(eigen_out-1)));	//*5000 is a dirty fudge factor. This isn't what you are meant to do to get eigenvectors but the output is visually pleasing for 8-bit eigenfaces.
+	    						//outputProc.setf(j, i, (float) ((eigenX[j+(i*width)])*(eigenX[j+(i*width)])));
+	    						outputProc.set(j, i, (int) ((eigenX[j+(i*width)])*5000));
 	    					}
 	    				}
 	    				outputPlus.show();
     				}
+	    		} else if (eigen_out == -1) {
+	    			//default value. We'll assume the user did not select to output an eigenvector.
 	    		} else {
 	    			IJ.log("Could not output the specified eigenvector as it is less than 1 or greater than the number of computed principal components.");
 	    		}
+	    		
+	    		//print PC1 explains X amount of variance
+	    		IJ.log("W = "+Arrays.toString(pca.getW()));
 	    		
 	            plotTitle = new String("PCA output");
 	            xTitle = "PC "+ Integer.toString(pcompX);
 	            yTitle = "PC " + Integer.toString(pcompY);
 	        	Plot scatter = new Plot(plotTitle, xTitle, yTitle);
 	        	
-	        	Runnable runnable = () -> {
-	                initAndShowGUI();
-	            };
-	            FutureTask<Void> task = new FutureTask<>(runnable, null);
-	            SwingUtilities.invokeLater(task);
-	            try {
-	    			task.get();
-	    		} catch (InterruptedException e) {
-	    			e.printStackTrace();
-	    		} catch (ExecutionException e) {
-	    			e.printStackTrace();
-	    		}
+	        	if (!suppressFx) {
+		        	Runnable runnable = () -> {
+		                initAndShowGUI();
+		            };
+		            FutureTask<Void> task = new FutureTask<>(runnable, null);
+		            SwingUtilities.invokeLater(task);
+		            try {
+		    			task.get();
+		    		} catch (InterruptedException e) {
+		    			e.printStackTrace();
+		    		} catch (ExecutionException e) {
+		    			e.printStackTrace();
+		    		}
+	        	}
 	        	
 	        	if (labelsArray == null) {
 	        		scatter.setLineWidth(5);
@@ -368,14 +386,16 @@ public class Pca_ implements PlugIn {
 	        		groupColours = new Color[1];
 	        		groupColours[0] = Color.BLACK;
 	        		
-	        		//javafx code below
-	    			groupLabel = "Non-coloured data";
-	            	Platform.runLater(new Runnable() {
-	            		@Override
-	        	    	public void run() {
-	            			sc_Fx = addSeries(sc_Fx, Pcomp1, Pcomp2, groupLabel, Color.BLACK);
-	            		}
-	        		});
+	        		if (!suppressFx) {
+		        		//javafx code below
+		    			groupLabel = "Non-coloured data";
+		            	Platform.runLater(new Runnable() {
+		            		@Override
+		        	    	public void run() {
+		            			sc_Fx = addSeries(sc_Fx, Pcomp1, Pcomp2, groupLabel, Color.BLACK);
+		            		}
+		        		});
+	        		}
 	            	lookupArray = new int[1][Pcomp1.length];
 	            	//Arrays.setAll(lookupArray, i -> i + 1); //lambda equivalent of below loop
 	            	for (int z = 0; z < Pcomp1.length; z++) {
@@ -427,22 +447,23 @@ public class Pca_ implements PlugIn {
 	        			scatter.setLineWidth(5);
 	        			scatter.addPoints(XXarray, YYarray, 6);
 	        			
-	        			//javafx code below
-	    				groupLabel = uniqueArray[y];
-	    				final int w = y;
-	    		    	Runnable runnable2 = () -> {
-	    		    		sc_Fx = addSeries(sc_Fx, XXarray, YYarray, groupLabel, groupColours[w]);
-	    		    	};
-	    	    		FutureTask<Void> task2 = new FutureTask<>(runnable2, null);
-	    	            Platform.runLater(task2);
-	    	            try {
-	    	    			task2.get();
-	    	    		} catch (InterruptedException e) {
-	    	    			e.printStackTrace();
-	    	    		} catch (ExecutionException e) {
-	    	    			e.printStackTrace();
-	    	    		}
-	        			
+	        			if (!suppressFx) {
+		        			//javafx code below
+		    				groupLabel = uniqueArray[y];
+		    				final int w = y;
+		    		    	Runnable runnable2 = () -> {
+		    		    		sc_Fx = addSeries(sc_Fx, XXarray, YYarray, groupLabel, groupColours[w]);
+		    		    	};
+		    	    		FutureTask<Void> task2 = new FutureTask<>(runnable2, null);
+		    	            Platform.runLater(task2);
+		    	            try {
+		    	    			task2.get();
+		    	    		} catch (InterruptedException e) {
+		    	    			e.printStackTrace();
+		    	    		} catch (ExecutionException e) {
+		    	    			e.printStackTrace();
+		    	    		}
+	        			}
 	        		}
 	        		StringBuilder sb = new StringBuilder();
 	        		for (int y = 0; y < groupN; y++) {
@@ -462,45 +483,64 @@ public class Pca_ implements PlugIn {
 	    		
 	    	 }
 	    	 
-	     	//Code block for updating the legend adapted from https://stackoverflow.com/questions/34881129/javafx-scatter-chart-custom-legend
-	     	Platform.runLater(new Runnable() {
-	     	    @Override
-	     	    public void run() {
-	 		    	Set<Node> items = sc_Fx.lookupAll("Label.chart-legend-item");
-	 		        int it=0;
-	 		        for (Node item : items) {
-	 		        	Label label = (Label) item;
-	 		            XYChart.Data<Number, Number> newLegendPoint = new XYChart.Data<Number, Number>();	//create a new datapoint to put into the legend and give it the same style and colours as the corresponding chart data series
-	 		            newLegendPoint.setNode(new Circle(2)); //if I allow different shapes, this will need to be populated procedurally
-	 		            Node node = newLegendPoint.getNode();
-	 		            String hex = "#"+Integer.toHexString(groupColours[it].getRGB()).substring(2);
-	 		            node.setStyle("-fx-stroke: "+hex+"; -fx-fill:"+hex);
-	 		            label.setGraphic(node);
-	 		            //label.setGraphic(nodeList.get(it));	//the approach from stackoverflow, which almost worked (it moved a datapoint to the legend instead of only copying the graphics)		            
-	                     label.getGraphic().setCursor(Cursor.HAND); // Hint to user that legend symbol is clickable
-	                     label.getGraphic().setOnMouseClicked(me -> {
-	                     	//IJ.log("Legend item pressed.");
-	                     	if (!label.isUnderline()) {
-	                     		label.setUnderline(true);
-	                     	} else {
-	                     		label.setUnderline(false);
-	                     	}
-	                     	for (XYChart.Series<Number, Number> s : sc_Fx.getData()) {
-	                     		if (s.getName().equals(label.getText())) {
-	 		                		for (XYChart.Data<Number, Number> d : s.getData()) {
-	 		                			if (d.getNode().isVisible()) {
-	 		                				d.getNode().setVisible(false);
-	 		                			} else {
-	 		                				d.getNode().setVisible(true);
-	 		                			}
-	 		                		}
-	                     		}
-	                     	}
-	                     });
-	 		            it++;
-	 		        }
-	 	    	}
-	     	});
+	    	 if (!suppressFx) {
+		     	//Code block for updating the legend adapted from https://stackoverflow.com/questions/34881129/javafx-scatter-chart-custom-legend
+		     	Platform.runLater(new Runnable() {
+		     	    @Override
+		     	    public void run() {
+		 		    	Set<Node> items = sc_Fx.lookupAll("Label.chart-legend-item");
+		 		        int it=0;
+		 		        for (Node item : items) {
+		 		        	Label label = (Label) item;
+		 		            XYChart.Data<Number, Number> newLegendPoint = new XYChart.Data<Number, Number>();	//create a new datapoint to put into the legend and give it the same style and colours as the corresponding chart data series
+		 		            newLegendPoint.setNode(new Circle(2)); //if I allow different shapes, this will need to be populated procedurally
+		 		            Node node = newLegendPoint.getNode();
+		 		            String hex = "#"+Integer.toHexString(groupColours[it].getRGB()).substring(2);
+		 		            node.setStyle("-fx-stroke: "+hex+"; -fx-fill:"+hex);
+		 		            label.setGraphic(node);
+		 		            //label.setGraphic(nodeList.get(it));	//the approach from stackoverflow, which almost worked (it moved a datapoint to the legend instead of only copying the graphics)		            
+		                     label.getGraphic().setCursor(Cursor.HAND); // Hint to user that legend symbol is clickable
+		                     label.getGraphic().setOnMouseClicked(me -> {
+		                     	//IJ.log("Legend item pressed.");
+		                     	if (!label.isUnderline()) {
+		                     		label.setUnderline(true);
+		                     	} else {
+		                     		label.setUnderline(false);
+		                     	}
+		                     	for (XYChart.Series<Number, Number> s : sc_Fx.getData()) {
+		                     		if (s.getName().equals(label.getText())) {
+		 		                		for (XYChart.Data<Number, Number> d : s.getData()) {
+		 		                			if (d.getNode().isVisible()) {
+		 		                				d.getNode().setVisible(false);
+		 		                			} else {
+		 		                				d.getNode().setVisible(true);
+		 		                			}
+		 		                		}
+		                     		}
+		                     	}
+		                    	//if a lasso area has been previously drawn, compute new 'areaNodes' and 'pointsInLasso'
+		                    	if (!multiPath.getElements().isEmpty()) {
+		                    		areaNodes = 0;
+		            	        	pointsInLasso.clear();
+		            	        	
+		            	            //Iterate over all sc_Fx nodes, series-by-series.
+		            	            for (ScatterChart.Series<Number, Number> series : sc_Fx.getData()) {
+		            		            	for (Data<Number, Number> data : series.getData()) {
+		            			                //Node node = data.getNode();
+		            	
+		            		                	if (multiPath.contains(data.getNode().getBoundsInParent().getMinX()+xPathOffset, data.getNode().getBoundsInParent().getMinY()+yPathOffset) && data.getNode().isVisible()) {
+		            			                	areaNodes++;
+		            			                	pointsInLasso.add(lookupArray[sc_Fx.getData().indexOf(series)][series.getData().indexOf(data)]);
+		            			                }
+		            		            	}
+		            	            }
+		                    	}
+		                     });
+		 		            it++;
+		 		        }
+		 	    	}
+		     	});
+	    	 }
 	}
 	
     public String[] getLabels( String labelIndexPath) throws IOException {
@@ -572,10 +612,13 @@ public class Pca_ implements PlugIn {
         ranSeed = Macro.getValue(optionsStr, "seed", "5");
         
         // See if a CSV output is requested.
-        //outputCSV = optionsStr.contains("output_csv");
+        outputCSV = optionsStr.contains("output_csv");
         
         // Suppress the 'Do you want to run on the image stack' prompt
         suppressStackAsk = optionsStr.contains("no_prompt");
+        
+        // Suppress the creation of an interactive FX-plot
+        suppressFx = optionsStr.contains("no_fx");
 
     }
     
@@ -921,7 +964,8 @@ public class Pca_ implements PlugIn {
         		if (!multiEnabled) {
         			return;
         		}
-	        	int areaNodes = 0;
+	        	areaNodes = 0;
+	        	pointsInLasso.clear();
 	        	multiPath.getElements().add(new LineTo(mouseStartX, mouseStartY)); //see if moving the line to the path origin makes the next closePath call less jumpy.
 	        	multiPath.getElements().add(new ClosePath());
 	        	
@@ -944,6 +988,7 @@ public class Pca_ implements PlugIn {
 	
 		                	if (multiPath.contains(node.getBoundsInParent().getMinX()+xPathOffset, node.getBoundsInParent().getMinY()+yPathOffset) && node.isVisible()) {
 			                	areaNodes++;
+			                	pointsInLasso.add(lookupArray[sc_Fx.getData().indexOf(series)][series.getData().indexOf(data)]);
 			                	//IJ.log("Overlap found.");
 			                	//IJ.log("Overlap coordinates = "+Double.toString(node.getBoundsInParent().getMinX())+", "+Double.toString(node.getBoundsInParent().getMinY()));
 			                	//ImagePlus stack3 = WindowManager.getCurrentImage();
@@ -1001,7 +1046,15 @@ public class Pca_ implements PlugIn {
 	        			 if (!Arrays.stream(titles).anyMatch("Sub-stack"::equals) && WindowManager.getCurrentImage() != null && (WindowManager.getCurrentImage()).isStack() && WindowManager.getCurrentImage().getStackSize() == Pcomp1.length) {
 	        				 //int type = WindowManager.getCurrentImage().getType();
 	        				 //ImagePlus subStack = new ImagePlus();
-	        				 IJ.log("toStack was pressed.");
+	        				 ImageStack subStack = WindowManager.getCurrentImage().createEmptyStack();
+	        				 for (int i = 0; i < areaNodes; i++) {
+	        					 WindowManager.getCurrentImage().setSlice(pointsInLasso.get(i));
+	        					 subStack.addSlice( WindowManager.getCurrentImage().getProcessor());
+	        				 }
+	        				 ImagePlus subStackImp = new ImagePlus("Sub-stack of "+Integer.toString(areaNodes)+" datapoints", subStack);
+	        				 subStackImp.show();
+	        				 WindowManager.getCurrentImage().setSlice(0);
+	        				 //IJ.log("toStack was pressed.");
 	        			 }
 	        			 //stack3.setSlice(lookupArray[sc_Fx.getData().indexOf(series)][series.getData().indexOf(data)]);
 	        		}

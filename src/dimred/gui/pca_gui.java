@@ -21,6 +21,7 @@ public class pca_gui {
 	private String arguments= "";
 	boolean cancelled;
 	boolean askForLabels;
+	boolean suppressFx;
 	
 	public pca_gui() {
 		optionsSelect();
@@ -52,11 +53,16 @@ public class pca_gui {
 			arguments = arguments + " " + "eigen_out=" + eigen_out;
 		}
 		
+		if (suppressFx) {
+			arguments = arguments + " " + "no_fx";
+		}
+		
 		if (label_path != null && !("").equals(label_path) && label_path.matches(".*[A-Za-z].*")) {
 			arguments = arguments + " " + "label_path=["+label_path+"]";
 			label_path = null;
 		}
 		
+		//consider adding a log output, to indicate set variables.
 		IJ.run("PCA", ""+arguments);
 		
 		/*
@@ -84,7 +90,9 @@ public class pca_gui {
         JTextField x_axis = new JTextField(3);
         JTextField y_axis = new JTextField(3);
         JTextField eigenvector = new JTextField(3);
-        JCheckBox labelCheck = new JCheckBox();  
+        JCheckBox labelCheck = new JCheckBox();
+        JCheckBox FxPlotCheck = new JCheckBox();
+    		FxPlotCheck.setSelected(true);
         
         JPanel panel = new JPanel(new GridBagLayout());
         GridBagConstraints constraints = new GridBagConstraints();
@@ -166,6 +174,24 @@ public class pca_gui {
         constraints.gridy = 15;
         panel.add(new JLabel("You will be asked for the file after pressing OK."), constraints);
         
+        constraints.gridy = 16; 
+        panel.add(new JLabel("-----------------------------------------------------------------------------------------"), constraints);
+        
+        constraints.gridx = 0;
+        constraints.gridy = 17;
+        constraints.gridwidth = 1;
+        panel.add(new JLabel("Create an interactive plot?"), constraints);
+        
+        constraints.gridx = 1;
+        constraints.gridwidth = 1;
+        panel.add(FxPlotCheck, constraints);
+        
+        constraints.gridx = 0;
+        constraints.gridy = 18;
+        panel.add(new JLabel("Points can be related to their corresponding stack-slice."), constraints);
+        constraints.gridy = 19;
+        panel.add(new JLabel("However, handling many thousands of data points can be sluggish."), constraints);
+        
         
         int result = JOptionPane.showConfirmDialog(null, panel, "Optionally enter PCA parameters", JOptionPane.OK_CANCEL_OPTION);
         if (result == JOptionPane.OK_OPTION) {
@@ -178,6 +204,13 @@ public class pca_gui {
         	} else {
         		askForLabels = false;
         	}
+        	
+        	if (FxPlotCheck.isSelected()) {
+        		suppressFx = false;
+        	} else {
+        		suppressFx = true;
+        	}
+        	
         } else if (result == JOptionPane.CANCEL_OPTION) {
       	  cancelled = true;
         }

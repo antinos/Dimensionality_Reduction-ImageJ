@@ -16,8 +16,10 @@ public class umap_gui {
 	private String nNeighbours;
 	private String nThreads;
 	private String label_path="";
+	private String arguments= "";
 	boolean cancelled;
 	boolean askForLabels;
+	boolean suppressFx;
 	
 	public umap_gui() {
 		optionsSelect();
@@ -29,7 +31,30 @@ public class umap_gui {
 			label_path = IJ.getFilePath("Choose a .csv label file.");
 		}
 		
-		//There must be a better way to cascade through the options below. Three or more parameters will get quite confusing.
+		if (nNeighbours != null && !("").equals(nNeighbours) && !nNeighbours.matches(".*[A-Za-z].*") && Double.valueOf(nNeighbours) > 0){
+			nNeighbours.trim();
+			arguments = arguments + " " + "n_nearest=" + nNeighbours;
+		}
+		
+		if (nThreads != null && !("").equals(nThreads) && !nThreads.matches(".*[A-Za-z].*") && Double.valueOf(nThreads) > 1) {
+			nThreads.trim();
+			arguments = arguments + " " + "n_threads=" + nThreads;
+		}
+		
+		if (suppressFx) {
+			arguments = arguments + " " + "no_fx";
+		}
+		
+		if (label_path != null && !("").equals(label_path) && label_path.matches(".*[A-Za-z].*")) {
+			arguments = arguments + " " + "label_path=["+label_path+"]";
+			label_path = null;
+		}
+		
+		//consider adding a log output, to indicate set variables.
+		IJ.run("UMAP", ""+arguments);
+		
+		/*
+		//There is better way to handle options (see the pca_gui implementation), unlike the cascade below. Three or more parameters will get quite confusing.
 		if (nNeighbours != null && !("").equals(nNeighbours) && !nNeighbours.matches(".*[A-Za-z].*") && Double.valueOf(nNeighbours) > 0){
 			if (nThreads != null && !("").equals(nThreads) && !nThreads.matches(".*[A-Za-z].*") && Double.valueOf(nThreads) > 1) {
 				if (label_path != null && !("").equals(label_path) && label_path.matches(".*[A-Za-z].*")) {
@@ -69,12 +94,15 @@ public class umap_gui {
 				IJ.run("UMAP");
 			}
 		}
+		*/
 	}
 	
     public void optionsSelect() {
         JTextField numNeighbours = new JTextField(3);
         JTextField numThreads = new JTextField(3);
-        JCheckBox labelCheck = new JCheckBox();   
+        JCheckBox labelCheck = new JCheckBox();  
+        JCheckBox FxPlotCheck = new JCheckBox();
+        	FxPlotCheck.setSelected(true);
         
         JPanel panel = new JPanel(new GridBagLayout());
         GridBagConstraints constraints = new GridBagConstraints();
@@ -132,6 +160,24 @@ public class umap_gui {
         constraints.gridy = 11;
         panel.add(new JLabel("You will be asked for the file after pressing OK."), constraints);
         
+        constraints.gridy = 12; 
+        panel.add(new JLabel("-----------------------------------------------------------------------------------------"), constraints);
+        
+        constraints.gridx = 0;
+        constraints.gridy = 13;
+        constraints.gridwidth = 1;
+        panel.add(new JLabel("Create an interactive plot?"), constraints);
+        
+        constraints.gridx = 1;
+        constraints.gridwidth = 1;
+        panel.add(FxPlotCheck, constraints);
+        
+        constraints.gridx = 0;
+        constraints.gridy = 14;
+        panel.add(new JLabel("Points can be related to their corresponding stack-slice."), constraints);
+        constraints.gridy = 15;
+        panel.add(new JLabel("However, handling many thousands of data points can be sluggish."), constraints);
+        
         
         int result = JOptionPane.showConfirmDialog(null, panel, "Optionally set UMAP parameters", JOptionPane.OK_CANCEL_OPTION);
         if (result == JOptionPane.OK_OPTION) {
@@ -141,6 +187,12 @@ public class umap_gui {
         		askForLabels = true;
         	} else {
         		askForLabels = false;
+        	}
+        	
+        	if (FxPlotCheck.isSelected()) {
+        		suppressFx = false;
+        	} else {
+        		suppressFx = true;
         	}
         	
         } else if (result == JOptionPane.CANCEL_OPTION) {

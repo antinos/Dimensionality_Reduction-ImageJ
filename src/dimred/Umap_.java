@@ -41,7 +41,9 @@ import javafx.scene.shape.Path;
 import javafx.scene.shape.StrokeLineCap;
 
 import com.jujutsu.utils.MatrixUtils;
+import com.jujutsu.utils.MatrixOps;
 
+import tagbio.umap.DefaultMatrix;
 import tagbio.umap.Umap;
 
 import java.awt.Color;
@@ -108,6 +110,8 @@ public class Umap_ implements PlugIn {
 	static double yPathOffset = 0;
     static double mouseStartX;
     static double mouseStartY;
+    static int areaNodes;	//count of points within a lasso selection
+    static ArrayList<Integer> pointsInLasso = new ArrayList<Integer>();
 	
     // Options to use during the run. Defaults for some but otherwise populated when parseOptions() is called.
     private String inputFolderPath;
@@ -125,6 +129,9 @@ public class Umap_ implements PlugIn {
     private boolean outputCSV = false; //create a CSV copy of the dimensionality-reduction output XYs on the users desktop.
     boolean cancelled; //JOption cancel flag.
     private boolean suppressStackAsk = false;
+    private boolean suppressFx = false;
+    private boolean logTransform = false;
+    private boolean cenAndScale = false;
     
     // Variables and main() method for testing in IDEs.
     private static String debugOptions = null;
@@ -288,7 +295,21 @@ public class Umap_ implements PlugIn {
         umap.setThreads(threads); // use > 1 to enable parallelism. Over 1 will prevent a deterministic result.
         umap.setMetric(metric);
         umap.setMinDist((float)minDist);
-        final double[][] Y = umap.fitTransform(imageMatrix);
+        
+        if (logTransform) {
+        	imageMatrix = MatrixOps.log(imageMatrix, true);
+        }
+        if (cenAndScale) {
+        	imageMatrix = MatrixOps.centerAndScale(imageMatrix);
+        }
+        
+        //final double[][] Y = umap.fitTransform(imageMatrix);
+        //umap.transform(null);
+        //umap.fit(imageMatrix);
+        
+        umap.fit(new DefaultMatrix(doubleToFloat(imageMatrix)), null);
+        final double[][] Y = umap.getEmbedding();
+        
         
         //Get and use labels if a .csv file is specified.
         if (!inputIndexPath.isEmpty() && inputIndexPath != null) {
@@ -337,18 +358,20 @@ public class Umap_ implements PlugIn {
         yTitle = "UMAP 2";
     	Plot scatter = new Plot(plotTitle, xTitle, yTitle);
     	
-    	Runnable runnable = () -> {
-            initAndShowGUI();
-        };
-        FutureTask<Void> task = new FutureTask<>(runnable, null);
-        SwingUtilities.invokeLater(task);
-        try {
-			task.get();
-		} catch (InterruptedException e) {
-			e.printStackTrace();
-		} catch (ExecutionException e) {
-			e.printStackTrace();
-		}
+    	if (!suppressFx) {
+	    	Runnable runnable = () -> {
+	            initAndShowGUI();
+	        };
+	        FutureTask<Void> task = new FutureTask<>(runnable, null);
+	        SwingUtilities.invokeLater(task);
+	        try {
+				task.get();
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+			} catch (ExecutionException e) {
+				e.printStackTrace();
+			}
+    	}
 		    	
     	if (labelsArray == null) {
     		scatter.setLineWidth(5);
@@ -361,19 +384,21 @@ public class Umap_ implements PlugIn {
     		groupColours = new Color[1];
     		groupColours[0] = Color.BLACK;
     		
-    		//javafx code below
-			groupLabel = "Data";
-        	Platform.runLater(new Runnable() {
-        		@Override
-    	    	public void run() {
-        			sc_Fx = addSeries(sc_Fx, Xarray, Yarray, groupLabel, Color.BLACK);
-        		}
-    		});
+    		if (!suppressFx) {
+	    		//javafx code below
+				groupLabel = "Data";
+	        	Platform.runLater(new Runnable() {
+	        		@Override
+	    	    	public void run() {
+	        			sc_Fx = addSeries(sc_Fx, Xarray, Yarray, groupLabel, Color.BLACK);
+	        		}
+	    		});
+    		}
         	lookupArray = new int[1][Xarray.length];
         	//Arrays.setAll(lookupArray, i -> i + 1); //lambda equivalent of below loop
         	for (int z = 0; z < Xarray.length; z++) {
         		lookupArray[0][z] = z+1;
-        	}
+        	}		
     	} else {
     		//some method to count unique entries (groups) in the labels array here. I expect processing overhead time-loss associated with this 'else' code.
     		ArrayList<String> uniqueArrayList = new ArrayList<>();
@@ -418,21 +443,23 @@ public class Umap_ implements PlugIn {
     			scatter.setLineWidth(5);
     			scatter.addPoints(XXarray, YYarray, 6);
     			
-    			//javafx code below
-				groupLabel = uniqueArray[y];
-				final int w = y;
-		    	Runnable runnable2 = () -> {
-		    		sc_Fx = addSeries(sc_Fx, XXarray, YYarray, groupLabel, groupColours[w]);
-		    	};
-	    		FutureTask<Void> task2 = new FutureTask<>(runnable2, null);
-	            Platform.runLater(task2);
-	            try {
-	    			task2.get();
-	    		} catch (InterruptedException e) {
-	    			e.printStackTrace();
-	    		} catch (ExecutionException e) {
-	    			e.printStackTrace();
-	    		}
+    			if (!suppressFx) {
+	    			//javafx code below
+					groupLabel = uniqueArray[y];
+					final int w = y;
+			    	Runnable runnable2 = () -> {
+			    		sc_Fx = addSeries(sc_Fx, XXarray, YYarray, groupLabel, groupColours[w]);
+			    	};
+		    		FutureTask<Void> task2 = new FutureTask<>(runnable2, null);
+		            Platform.runLater(task2);
+		            try {
+		    			task2.get();
+		    		} catch (InterruptedException e) {
+		    			e.printStackTrace();
+		    		} catch (ExecutionException e) {
+		    			e.printStackTrace();
+		    		}
+    			}
 
     		}
     		
@@ -475,46 +502,65 @@ public class Umap_ implements PlugIn {
     	});
     	*/
     	
-    	//Code block for updating the legend adapted from https://stackoverflow.com/questions/34881129/javafx-scatter-chart-custom-legend
-    	Platform.runLater(new Runnable() {
-    	    @Override
-    	    public void run() {
-		    	Set<Node> items = sc_Fx.lookupAll("Label.chart-legend-item");
-		        int it=0;
-		        for (Node item : items) {
-		        	Label label = (Label) item;
-		            XYChart.Data<Number, Number> newLegendPoint = new XYChart.Data<Number, Number>();	//create a new datapoint to put into the legend and give it the same style and colours as the corresponding chart data series
-		            newLegendPoint.setNode(new Circle(2)); //if I allow different shapes, this will need to be populated procedurally
-		            Node node = newLegendPoint.getNode();
-		            String hex = "#"+Integer.toHexString(groupColours[it].getRGB()).substring(2);
-		            node.setStyle("-fx-stroke: "+hex+"; -fx-fill:"+hex);
-		            label.setGraphic(node);
-		            //label.setGraphic(nodeList.get(it));	//the approach from stackoverflow, which almost worked (it moved a datapoint to the legend instead of only copying the graphics)		            
-                    label.getGraphic().setCursor(Cursor.HAND); // Hint to user that legend symbol is clickable
-                    label.getGraphic().setOnMouseClicked(me -> {
-                    	//IJ.log("Legend item pressed.");
-                    	if (!label.isUnderline()) {
-                    		label.setUnderline(true);
-                    	} else {
-                    		label.setUnderline(false);
-                    	}
-                    	for (XYChart.Series<Number, Number> s : sc_Fx.getData()) {
-                    		if (s.getName().equals(label.getText())) {
-		                		for (XYChart.Data<Number, Number> d : s.getData()) {
-		                			if (d.getNode().isVisible()) {
-		                				d.getNode().setVisible(false);
-		                			} else {
-		                				d.getNode().setVisible(true);
-		                			}
-		                		}
-                    		}
-                    	}
-                    });
-		            it++;
-		        }
-		        //more run() code can go here if needed.
-	    	}
-    	});
+    	if (!suppressFx) {
+	    	//Code block for updating the legend adapted from https://stackoverflow.com/questions/34881129/javafx-scatter-chart-custom-legend
+	    	Platform.runLater(new Runnable() {
+	    	    @Override
+	    	    public void run() {
+			    	Set<Node> items = sc_Fx.lookupAll("Label.chart-legend-item");
+			        int it=0;
+			        for (Node item : items) {
+			        	Label label = (Label) item;
+			            XYChart.Data<Number, Number> newLegendPoint = new XYChart.Data<Number, Number>();	//create a new datapoint to put into the legend and give it the same style and colours as the corresponding chart data series
+			            newLegendPoint.setNode(new Circle(2)); //if I allow different shapes, this will need to be populated procedurally
+			            Node node = newLegendPoint.getNode();
+			            String hex = "#"+Integer.toHexString(groupColours[it].getRGB()).substring(2);
+			            node.setStyle("-fx-stroke: "+hex+"; -fx-fill:"+hex);
+			            label.setGraphic(node);
+			            //label.setGraphic(nodeList.get(it));	//the approach from stackoverflow, which almost worked (it moved a datapoint to the legend instead of only copying the graphics)		            
+	                    label.getGraphic().setCursor(Cursor.HAND); // Hint to user that legend symbol is clickable
+	                    label.getGraphic().setOnMouseClicked(me -> {
+	                    	//IJ.log("Legend item pressed.");
+	                    	if (!label.isUnderline()) {
+	                    		label.setUnderline(true);
+	                    	} else {
+	                    		label.setUnderline(false);
+	                    	}
+	                    	for (XYChart.Series<Number, Number> s : sc_Fx.getData()) {
+	                    		if (s.getName().equals(label.getText())) {
+			                		for (XYChart.Data<Number, Number> d : s.getData()) {
+			                			if (d.getNode().isVisible()) {
+			                				d.getNode().setVisible(false);
+			                			} else {
+			                				d.getNode().setVisible(true);
+			                			}
+			                		}
+	                    		}
+	                    	}
+	                    	//if a lasso area has been previously drawn, compute new 'areaNodes' and 'pointsInLasso'
+	                    	if (!multiPath.getElements().isEmpty()) {
+	                    		areaNodes = 0;
+	            	        	pointsInLasso.clear();
+	            	        	
+	            	            //Iterate over all sc_Fx nodes, series-by-series.
+	            	            for (ScatterChart.Series<Number, Number> series : sc_Fx.getData()) {
+	            		            	for (Data<Number, Number> data : series.getData()) {
+	            			                //Node node = data.getNode();
+	            	
+	            		                	if (multiPath.contains(data.getNode().getBoundsInParent().getMinX()+xPathOffset, data.getNode().getBoundsInParent().getMinY()+yPathOffset) && data.getNode().isVisible()) {
+	            			                	areaNodes++;
+	            			                	pointsInLasso.add(lookupArray[sc_Fx.getData().indexOf(series)][series.getData().indexOf(data)]);
+	            			                }
+	            		            	}
+	            	            }
+	                    	}
+	                    });
+			            it++;
+			        }
+			        //more run() code can go here if needed.. for instance, toggles to (de)select all groups
+		    	}
+	    	});
+    	}
     }
     
     /*
@@ -536,7 +582,7 @@ public class Umap_ implements PlugIn {
   	     }
   	     builder.append("\n");//append new line at the end of the row
   	  }
-  	  String desktopPath = System.getProperty("user.home") + File.separator + "Desktop" + File.separator + "tSNE_result.csv";
+  	  String desktopPath = System.getProperty("user.home") + File.separator + "Desktop" + File.separator + "Umap_result.csv";
   	  BufferedWriter writer = new BufferedWriter(new FileWriter(""+desktopPath));
   	  writer.write(builder.toString());//save the string representation of the board
   	  writer.close();
@@ -643,6 +689,15 @@ public class Umap_ implements PlugIn {
         
         // Suppress the 'Do you want to run on the image stack' prompt
         suppressStackAsk = optionsStr.contains("no_prompt");
+        
+        // Suppress the creation of an interactive FX-plot
+        suppressFx = optionsStr.contains("no_fx");
+        
+        // Log transform the DR input data. Data shaping isn't as important for image data, which is usually sampled across the same input space.
+        logTransform = optionsStr.contains("log_transform");
+        
+        // Centre and Scale the DR input data. Data shaping isn't as important for image data, which is usually sampled across the same input space.
+        cenAndScale = optionsStr.contains("centre_and_scale");
 
     }
     
@@ -998,7 +1053,7 @@ public class Umap_ implements PlugIn {
     	Node chartBackground = sc_Fx.lookup(".chart-plot-background");
     	SelectionModel selectionModel = new SelectionModel();
     	
-    	multiPath = new Path();
+    	//multiPath = new Path();
     	multiPath.setStroke(javafx.scene.paint.Color.BLUE);
     	multiPath.setStrokeWidth(1);
     	multiPath.setStrokeLineCap(StrokeLineCap.ROUND);
@@ -1037,6 +1092,7 @@ public class Umap_ implements PlugIn {
 	            e.consume();
 	
 	            multiEnabled = true;
+	            
         	}
         	if (e.getClickCount() == 2 && e.getButton() == MouseButton.PRIMARY) {
 	        	xAxis_Fx.setAutoRanging(true);
@@ -1084,7 +1140,8 @@ public class Umap_ implements PlugIn {
         		if (!multiEnabled) {
         			return;
         		}
-	        	int areaNodes = 0;
+	        	areaNodes = 0;
+	        	pointsInLasso.clear();
 	        	multiPath.getElements().add(new LineTo(mouseStartX, mouseStartY)); //see if moving the line to the path origin makes the next closePath call less jumpy.
 	        	multiPath.getElements().add(new ClosePath());
 	        	
@@ -1107,6 +1164,7 @@ public class Umap_ implements PlugIn {
 	
 		                	if (multiPath.contains(node.getBoundsInParent().getMinX()+xPathOffset, node.getBoundsInParent().getMinY()+yPathOffset) && node.isVisible()) {
 			                	areaNodes++;
+			                	pointsInLasso.add(lookupArray[sc_Fx.getData().indexOf(series)][series.getData().indexOf(data)]);
 			                	//IJ.log("Overlap found.");
 			                	//IJ.log("Overlap coordinates = "+Double.toString(node.getBoundsInParent().getMinX())+", "+Double.toString(node.getBoundsInParent().getMinY()));
 			                	//ImagePlus stack3 = WindowManager.getCurrentImage();
@@ -1164,10 +1222,18 @@ public class Umap_ implements PlugIn {
 	        		 public void handle(ActionEvent event) {
 	        			 //ImagePlus stack3 = WindowManager.getCurrentImage();
 	        			 String titles[] = WindowManager.getImageTitles();
-	        			 if (!Arrays.stream(titles).anyMatch("Sub-stack"::equals) && WindowManager.getCurrentImage() != null && (WindowManager.getCurrentImage()).isStack() && WindowManager.getCurrentImage().getStackSize() == Xarray.length) {
+	        			 if (!Arrays.stream(titles).anyMatch("Sub-stack"::equals) && WindowManager.getCurrentImage() != null && (WindowManager.getCurrentImage()).isStack() && WindowManager.getCurrentImage().getStackSize() == Xarray.length && areaNodes > 0) {
 	        				 //int type = WindowManager.getCurrentImage().getType();
-	        				 //ImagePlus subStack = new ImagePlus();
-	        				 IJ.log("toStack was pressed.");
+	        				 //ImageStack subStack = new ImageStack(stack.getWidth(), stack.getHeight());
+	        				 ImageStack subStack = WindowManager.getCurrentImage().createEmptyStack();
+	        				 for (int i = 0; i < areaNodes; i++) {
+	        					 WindowManager.getCurrentImage().setSlice(pointsInLasso.get(i));
+	        					 subStack.addSlice( WindowManager.getCurrentImage().getProcessor());
+	        				 }
+	        				 ImagePlus subStackImp = new ImagePlus("Sub-stack of "+Integer.toString(areaNodes)+" datapoints", subStack);
+	        				 subStackImp.show();
+	        				 WindowManager.getCurrentImage().setSlice(0);
+	        				 //IJ.log("toStack was pressed.");
 	        			 }
 	        			 //stack3.setSlice(lookupArray[sc_Fx.getData().indexOf(series)][series.getData().indexOf(data)]);
 	        		}
@@ -1182,7 +1248,7 @@ public class Umap_ implements PlugIn {
         	
         	// recount the enclosed points after left clicking on the multiPath selection area 
         	if (e2.getClickCount() == 1 && e2.getButton() == MouseButton.PRIMARY) {
-        		int areaNodes = 0;
+        		areaNodes = 0;
         		for (ScatterChart.Series<Number, Number> series : sc_Fx.getData()) {
 	            	for (Data<Number, Number> data : series.getData()) {
 		                Node node = data.getNode();
@@ -1247,5 +1313,14 @@ public class Umap_ implements PlugIn {
 
     }
     
+    public float[][] doubleToFloat(final double[][] instances) {
+        final float[][] output = new float[instances.length][instances[0].length];
+        for (int k = 0; k < instances.length; ++k) {
+          for (int j = 0; j < instances[0].length; ++j) {
+            output[k][j] = (float) instances[k][j];
+          }
+        }
+        return output;
+      }
     
 }

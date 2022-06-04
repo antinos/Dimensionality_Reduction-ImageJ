@@ -1,6 +1,7 @@
 package plot.plot;
 import ij.IJ;
 import ij.ImagePlus;
+import ij.ImageStack;
 import ij.WindowManager;
 import ij.plugin.PlugIn;
 import javafx.application.Platform;
@@ -86,6 +87,8 @@ public class ReadFxPlot implements PlugIn {
 	static double yPathOffset = 0;
     static double mouseStartX;
     static double mouseStartY;
+    static int areaNodes;	//count of points within a lasso selection
+    static ArrayList<Integer> pointsInLasso = new ArrayList<Integer>();
 	
 	@SuppressWarnings("unchecked")
 	public void run(String arg) {
@@ -215,6 +218,23 @@ public class ReadFxPlot implements PlugIn {
 	    		                		}
 	                        		}
 	                        	}
+		                    	//if a lasso area has been previously drawn, compute new 'areaNodes' and 'pointsInLasso'
+		                    	if (!multiPath.getElements().isEmpty()) {
+		                    		areaNodes = 0;
+		            	        	pointsInLasso.clear();
+		            	        	
+		            	            //Iterate over all sc_Fx nodes, series-by-series.
+		            	            for (ScatterChart.Series<Number, Number> series : sc_Fx.getData()) {
+		            		            	for (Data<Number, Number> data : series.getData()) {
+		            			                //Node node = data.getNode();
+		            	
+		            		                	if (multiPath.contains(data.getNode().getBoundsInParent().getMinX()+xPathOffset, data.getNode().getBoundsInParent().getMinY()+yPathOffset) && data.getNode().isVisible()) {
+		            			                	areaNodes++;
+		            			                	pointsInLasso.add(lookupArray[sc_Fx.getData().indexOf(series)][series.getData().indexOf(data)]);
+		            			                }
+		            		            	}
+		            	            }
+		                    	}
 	                        });
 	    		            it++;
 	    		        }
@@ -567,7 +587,8 @@ public class ReadFxPlot implements PlugIn {
         		if (!multiEnabled) {
         			return;
         		}
-	        	int areaNodes = 0;
+	        	areaNodes = 0;
+	        	pointsInLasso.clear();
 	        	multiPath.getElements().add(new LineTo(mouseStartX, mouseStartY)); //see if moving the line to the path origin makes the next closePath call less jumpy.
 	        	multiPath.getElements().add(new ClosePath());
 	        	
@@ -590,6 +611,7 @@ public class ReadFxPlot implements PlugIn {
 	
 		                	if (multiPath.contains(node.getBoundsInParent().getMinX()+xPathOffset, node.getBoundsInParent().getMinY()+yPathOffset) && node.isVisible()) {
 			                	areaNodes++;
+			                	pointsInLasso.add(lookupArray[sc_Fx.getData().indexOf(series)][series.getData().indexOf(data)]);
 			                	//IJ.log("Overlap found.");
 			                	//IJ.log("Overlap coordinates = "+Double.toString(node.getBoundsInParent().getMinX())+", "+Double.toString(node.getBoundsInParent().getMinY()));
 			                	//ImagePlus stack3 = WindowManager.getCurrentImage();
@@ -645,7 +667,16 @@ public class ReadFxPlot implements PlugIn {
 	        			 if (!Arrays.stream(titles).anyMatch("Sub-stack"::equals) && WindowManager.getCurrentImage() != null && (WindowManager.getCurrentImage()).isStack() && WindowManager.getCurrentImage().getStackSize() == Xarray.length) {
 	        				 //int type = WindowManager.getCurrentImage().getType();
 	        				 //ImagePlus subStack = new ImagePlus();
-	        				 IJ.log("toStack was pressed.");
+	        				 ImageStack subStack = WindowManager.getCurrentImage().createEmptyStack();
+	        				 for (int i = 0; i < areaNodes; i++) {
+	        					 WindowManager.getCurrentImage().setSlice(pointsInLasso.get(i));
+	        					 subStack.addSlice(WindowManager.getCurrentImage().getProcessor());
+	        				 }
+	        				 ImagePlus subStackImp = new ImagePlus("Sub-stack of "+Integer.toString(areaNodes)+" datapoints", subStack);
+	        				 subStackImp.show();
+	        				 WindowManager.getCurrentImage().setSlice(0);
+	        				 
+	        				 //IJ.log("toStack was pressed.");
 	        			 }
 	        			 //stack3.setSlice(lookupArray[sc_Fx.getData().indexOf(series)][series.getData().indexOf(data)]);
 	        		}

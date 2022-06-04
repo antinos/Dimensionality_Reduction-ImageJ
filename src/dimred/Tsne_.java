@@ -109,6 +109,8 @@ public class Tsne_ implements PlugIn {
 	static double yPathOffset = 0;
     static double mouseStartX;
     static double mouseStartY;
+    static int areaNodes;	//count of points within a lasso selection
+    static ArrayList<Integer> pointsInLasso = new ArrayList<Integer>();
 	
     // Options to use during the run. Defaults for some but otherwise populated when parseOptions() is called.
     private String inputFolderPath;
@@ -121,6 +123,9 @@ public class Tsne_ implements PlugIn {
     private String ranSeed;
 		private int seed = 5;
 	private boolean suppressStackAsk = false;
+	private boolean suppressFx = false;
+    private boolean logTransform = false;
+    private boolean cenAndScale = false;
     
     // Variables and main() method for testing in IDEs.
     private static String debugOptions = null;
@@ -277,6 +282,13 @@ public class Tsne_ implements PlugIn {
         }
     }
         
+    if (logTransform) {
+    	imageMatrix = MatrixOps.log(imageMatrix, true);
+    }
+    if (cenAndScale) {
+    	imageMatrix = MatrixOps.centerAndScale(imageMatrix);
+    }
+    
     	//tSNE here
         double[][] Y = tSNE_reduction((debugArray == null? imageMatrix : debugArray), initial_dims, perplexity, max_iterations);
         
@@ -326,18 +338,20 @@ public class Tsne_ implements PlugIn {
         yTitle = "tSNE 2";
     	Plot scatter = new Plot(plotTitle, xTitle, yTitle);
     	
-    	Runnable runnable = () -> {
-            initAndShowGUI();
-        };
-        FutureTask<Void> task = new FutureTask<>(runnable, null);
-        SwingUtilities.invokeLater(task);
-        try {
-			task.get();
-		} catch (InterruptedException e) {
-			e.printStackTrace();
-		} catch (ExecutionException e) {
-			e.printStackTrace();
-		}
+    	if (!suppressFx) {
+	    	Runnable runnable = () -> {
+	            initAndShowGUI();
+	        };
+	        FutureTask<Void> task = new FutureTask<>(runnable, null);
+	        SwingUtilities.invokeLater(task);
+	        try {
+				task.get();
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+			} catch (ExecutionException e) {
+				e.printStackTrace();
+			}
+    	}
     	
     	if (labelsArray == null) {
     		scatter.setLineWidth(5);
@@ -350,14 +364,16 @@ public class Tsne_ implements PlugIn {
     		groupColours = new Color[1];
     		groupColours[0] = Color.BLACK;
     		
-    		//javafx code below
-			groupLabel = "Non-coloured data";
-        	Platform.runLater(new Runnable() {
-        		@Override
-    	    	public void run() {
-        			sc_Fx = addSeries(sc_Fx, Xarray, Yarray, groupLabel, Color.BLACK);
-        		}
-    		});
+    		if (!suppressFx) {
+	    		//javafx code below
+				groupLabel = "Non-coloured data";
+	        	Platform.runLater(new Runnable() {
+	        		@Override
+	    	    	public void run() {
+	        			sc_Fx = addSeries(sc_Fx, Xarray, Yarray, groupLabel, Color.BLACK);
+	        		}
+	    		});
+    		}
         	lookupArray = new int[1][Xarray.length];
         	//Arrays.setAll(lookupArray, i -> i + 1); //lambda equivalent of below loop
         	for (int z = 0; z < Xarray.length; z++) {
@@ -407,22 +423,23 @@ public class Tsne_ implements PlugIn {
     			scatter.setLineWidth(5);
     			scatter.addPoints(XXarray, YYarray, 6);
     			
-    			//javafx code below
-				groupLabel = uniqueArray[y];
-				final int w = y;
-		    	Runnable runnable2 = () -> {
-		    		sc_Fx = addSeries(sc_Fx, XXarray, YYarray, groupLabel, groupColours[w]);
-		    	};
-	    		FutureTask<Void> task2 = new FutureTask<>(runnable2, null);
-	            Platform.runLater(task2);
-	            try {
-	    			task2.get();
-	    		} catch (InterruptedException e) {
-	    			e.printStackTrace();
-	    		} catch (ExecutionException e) {
-	    			e.printStackTrace();
-	    		}
-    			
+    			if (!suppressFx) {
+	    			//javafx code below
+					groupLabel = uniqueArray[y];
+					final int w = y;
+			    	Runnable runnable2 = () -> {
+			    		sc_Fx = addSeries(sc_Fx, XXarray, YYarray, groupLabel, groupColours[w]);
+			    	};
+		    		FutureTask<Void> task2 = new FutureTask<>(runnable2, null);
+		            Platform.runLater(task2);
+		            try {
+		    			task2.get();
+		    		} catch (InterruptedException e) {
+		    			e.printStackTrace();
+		    		} catch (ExecutionException e) {
+		    			e.printStackTrace();
+		    		}
+    			}
     		}
     		StringBuilder sb = new StringBuilder();
     		for (int y = 0; y < groupN; y++) {
@@ -444,46 +461,64 @@ public class Tsne_ implements PlugIn {
     	double endTime = System.currentTimeMillis();
     	IJ.log("t-SNE took "+String.valueOf((endTime-startTime)/1000)+" seconds to complete.");
     	
-     	//Code block for updating the legend adapted from https://stackoverflow.com/questions/34881129/javafx-scatter-chart-custom-legend
-     	Platform.runLater(new Runnable() {
-     	    @Override
-     	    public void run() {
- 		    	Set<Node> items = sc_Fx.lookupAll("Label.chart-legend-item");
- 		        int it=0;
- 		        for (Node item : items) {
- 		        	Label label = (Label) item;
- 		            XYChart.Data<Number, Number> newLegendPoint = new XYChart.Data<Number, Number>();	//create a new datapoint to put into the legend and give it the same style and colours as the corresponding chart data series
- 		            newLegendPoint.setNode(new Circle(2)); //if I allow different shapes, this will need to be populated procedurally
- 		            Node node = newLegendPoint.getNode();
- 		            String hex = "#"+Integer.toHexString(groupColours[it].getRGB()).substring(2);
- 		            node.setStyle("-fx-stroke: "+hex+"; -fx-fill:"+hex);
- 		            label.setGraphic(node);
- 		            //label.setGraphic(nodeList.get(it));	//the approach from stackoverflow, which almost worked (it moved a datapoint to the legend instead of only copying the graphics)		            
-                     label.getGraphic().setCursor(Cursor.HAND); // Hint to user that legend symbol is clickable
-                     label.getGraphic().setOnMouseClicked(me -> {
-                     	//IJ.log("Legend item pressed.");
-                     	if (!label.isUnderline()) {
-                     		label.setUnderline(true);
-                     	} else {
-                     		label.setUnderline(false);
-                     	}
-                     	for (XYChart.Series<Number, Number> s : sc_Fx.getData()) {
-                     		if (s.getName().equals(label.getText())) {
- 		                		for (XYChart.Data<Number, Number> d : s.getData()) {
- 		                			if (d.getNode().isVisible()) {
- 		                				d.getNode().setVisible(false);
- 		                			} else {
- 		                				d.getNode().setVisible(true);
- 		                			}
- 		                		}
-                     		}
-                     	}
-                     });
- 		            it++;
- 		        }
- 	    	}
-     	});
-    	
+    	if (!suppressFx) {
+	     	//Code block for updating the legend adapted from https://stackoverflow.com/questions/34881129/javafx-scatter-chart-custom-legend
+	     	Platform.runLater(new Runnable() {
+	     	    @Override
+	     	    public void run() {
+	 		    	Set<Node> items = sc_Fx.lookupAll("Label.chart-legend-item");
+	 		        int it=0;
+	 		        for (Node item : items) {
+	 		        	Label label = (Label) item;
+	 		            XYChart.Data<Number, Number> newLegendPoint = new XYChart.Data<Number, Number>();	//create a new datapoint to put into the legend and give it the same style and colours as the corresponding chart data series
+	 		            newLegendPoint.setNode(new Circle(2)); //if I allow different shapes, this will need to be populated procedurally
+	 		            Node node = newLegendPoint.getNode();
+	 		            String hex = "#"+Integer.toHexString(groupColours[it].getRGB()).substring(2);
+	 		            node.setStyle("-fx-stroke: "+hex+"; -fx-fill:"+hex);
+	 		            label.setGraphic(node);
+	 		            //label.setGraphic(nodeList.get(it));	//the approach from stackoverflow, which almost worked (it moved a datapoint to the legend instead of only copying the graphics)		            
+	                     label.getGraphic().setCursor(Cursor.HAND); // Hint to user that legend symbol is clickable
+	                     label.getGraphic().setOnMouseClicked(me -> {
+	                     	//IJ.log("Legend item pressed.");
+	                     	if (!label.isUnderline()) {
+	                     		label.setUnderline(true);
+	                     	} else {
+	                     		label.setUnderline(false);
+	                     	}
+	                     	for (XYChart.Series<Number, Number> s : sc_Fx.getData()) {
+	                     		if (s.getName().equals(label.getText())) {
+	 		                		for (XYChart.Data<Number, Number> d : s.getData()) {
+	 		                			if (d.getNode().isVisible()) {
+	 		                				d.getNode().setVisible(false);
+	 		                			} else {
+	 		                				d.getNode().setVisible(true);
+	 		                			}
+	 		                		}
+	                     		}
+	                     	}
+	                    	//if a lasso area has been previously drawn, compute new 'areaNodes' and 'pointsInLasso'
+	                    	if (!multiPath.getElements().isEmpty()) {
+	                    		areaNodes = 0;
+	            	        	pointsInLasso.clear();
+	            	        	
+	            	            //Iterate over all sc_Fx nodes, series-by-series.
+	            	            for (ScatterChart.Series<Number, Number> series : sc_Fx.getData()) {
+	            		            	for (Data<Number, Number> data : series.getData()) {
+	            			                //Node node = data.getNode();
+	            	
+	            		                	if (multiPath.contains(data.getNode().getBoundsInParent().getMinX()+xPathOffset, data.getNode().getBoundsInParent().getMinY()+yPathOffset) && data.getNode().isVisible()) {
+	            			                	areaNodes++;
+	            			                	pointsInLasso.add(lookupArray[sc_Fx.getData().indexOf(series)][series.getData().indexOf(data)]);
+	            			                }
+	            		            	}
+	            	            }
+	                    	}
+	                     });
+	 		            it++;
+	 		        }
+	 	    	}
+	     	});
+    	}
     }
     
     public double[][] tSNE_reduction(double inputArray[][], int initial_dims, double perplexity, int max_iterations) {
@@ -610,6 +645,15 @@ public class Tsne_ implements PlugIn {
         
         // Suppress the 'Do you want to run on the image stack' prompt
         suppressStackAsk = optionsStr.contains("no_prompt");
+        
+        // Suppress the creation of an interactive FX-plot
+        suppressFx = optionsStr.contains("no_fx");
+        
+        // Log transform the DR input data. Data shaping isn't as important for image data, which is usually sampled across the same input space.
+        logTransform = optionsStr.contains("log_transform");
+        
+        // Centre and Scale the DR input data. Data shaping isn't as important for image data, which is usually sampled across the same input space.
+        cenAndScale = optionsStr.contains("centre_and_scale");
 
     }
     
@@ -955,7 +999,8 @@ public class Tsne_ implements PlugIn {
         		if (!multiEnabled) {
         			return;
         		}
-	        	int areaNodes = 0;
+	        	areaNodes = 0;
+	        	pointsInLasso.clear();
 	        	multiPath.getElements().add(new LineTo(mouseStartX, mouseStartY)); //see if moving the line to the path origin makes the next closePath call less jumpy.
 	        	multiPath.getElements().add(new ClosePath());
 	        	
@@ -978,6 +1023,7 @@ public class Tsne_ implements PlugIn {
 	
 		                	if (multiPath.contains(node.getBoundsInParent().getMinX()+xPathOffset, node.getBoundsInParent().getMinY()+yPathOffset) && node.isVisible()) {
 			                	areaNodes++;
+			                	pointsInLasso.add(lookupArray[sc_Fx.getData().indexOf(series)][series.getData().indexOf(data)]);
 			                	//IJ.log("Overlap found.");
 			                	//IJ.log("Overlap coordinates = "+Double.toString(node.getBoundsInParent().getMinX())+", "+Double.toString(node.getBoundsInParent().getMinY()));
 			                	//ImagePlus stack3 = WindowManager.getCurrentImage();
@@ -1035,7 +1081,15 @@ public class Tsne_ implements PlugIn {
 	        			 if (!Arrays.stream(titles).anyMatch("Sub-stack"::equals) && WindowManager.getCurrentImage() != null && (WindowManager.getCurrentImage()).isStack() && WindowManager.getCurrentImage().getStackSize() == Xarray.length) {
 	        				 //int type = WindowManager.getCurrentImage().getType();
 	        				 //ImagePlus subStack = new ImagePlus();
-	        				 IJ.log("toStack was pressed.");
+	        				 ImageStack subStack = WindowManager.getCurrentImage().createEmptyStack();
+	        				 for (int i = 0; i < areaNodes; i++) {
+	        					 WindowManager.getCurrentImage().setSlice(pointsInLasso.get(i));
+	        					 subStack.addSlice( WindowManager.getCurrentImage().getProcessor());
+	        				 }
+	        				 ImagePlus subStackImp = new ImagePlus("Sub-stack of "+Integer.toString(areaNodes)+" datapoints", subStack);
+	        				 subStackImp.show();
+	        				 WindowManager.getCurrentImage().setSlice(0);
+	        				 //IJ.log("toStack was pressed.");
 	        			 }
 	        			 //stack3.setSlice(lookupArray[sc_Fx.getData().indexOf(series)][series.getData().indexOf(data)]);
 	        		}
