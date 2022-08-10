@@ -3,8 +3,10 @@ package dimred;
 import ij.*;
 import ij.gui.Plot;
 import ij.io.DirectoryChooser;
+import ij.measure.ResultsTable;
 import ij.plugin.PlugIn;
 import ij.process.ImageProcessor;
+import ij.text.TextWindow;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.embed.swing.JFXPanel;
@@ -54,6 +56,8 @@ import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.math.RoundingMode;
+import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -73,12 +77,13 @@ import plot.plot.SaveFxPlot;
 /**version 1.0.4*/
 
 /**
- * UMAP java implementation using library from https://github.com/tag-bio/umap-java
+ * UMAP java implementation using a library from <a href="https://github.com/tag-bio/umap-java/">https://github.com/tag-bio/umap-java</a>. 
  * Process an image-stack, pass a directory of images to the plugin, or choose one when a dialog opens.
  */
 public class Umap_ implements PlugIn {
 	//Top level initialisation
 	int choice; //JOption 'process the image stack?' choice outcome
+	private boolean processingTable = false;
 	public static ImagePlus stack;
 	double[][] imageMatrix;
 	String[] Filelist;
@@ -147,13 +152,39 @@ public class Umap_ implements PlugIn {
         // Fill in the options we'll use during this run.
         parseOptions();
         processingStack = false;
+        processingTable = false;
         if (ranSeed != null && !("").equals(ranSeed) && !ranSeed.matches(".*[A-Za-z].*") && Double.valueOf(ranSeed) > 0) {
         	seed = Integer.valueOf(ranSeed);
         }
 		Random rand = new Random();
 		rand.setSeed(seed);
         
-        if (WindowManager.getCurrentImage() != null && (WindowManager.getCurrentImage()).isStack()) {
+		if (WindowManager.getActiveTable() != null && WindowManager.getActiveTable() instanceof TextWindow) {
+        	if (!suppressStackAsk) {
+        		choice = JOptionPane.showConfirmDialog(null, "Do you want to process the open table?", "UMAP option",JOptionPane.YES_NO_CANCEL_OPTION);
+        	} else {
+        		choice = JOptionPane.OK_OPTION;
+        	}
+			if (choice == JOptionPane.CANCEL_OPTION) {return;}
+			else if (choice == JOptionPane.OK_OPTION) {
+				processingTable = true;
+				ResultsTable rt = ResultsTable.getActiveTable(); //may need to make this a higher-level object
+				int tableN = rt.size(); //we could keep calling rt.size below, but fpr very large tables this may add noticable cpu + memory overhead
+				int ColN = rt.getLastColumn(); //as above
+				Filelist = new String[tableN];
+				imageMatrix = new double[tableN][ColN+1]; //Hopefully this works to count all headings... otherwise we will have to create and then enumerate a potentially very large string array (below)
+				//imageMatrix = new double[rt.size()][rt.getHeadings().length];
+				for (int y = 0; y < tableN; y++) {
+					Filelist[y] = Integer.toString(y+1);
+					for (int x = 0; x < ColN+1; x++) {
+						imageMatrix[y][x] = rt.getValueAsDouble(x, y);
+						//IJ.log(""+Double.toString(rt.getValueAsDouble(x, y)));
+					}
+				}
+			}
+		}
+		
+        if (WindowManager.getCurrentImage() != null && (WindowManager.getCurrentImage()).isStack() && !processingTable) {
         	int type = WindowManager.getCurrentImage().getType();
         	if (!suppressStackAsk) {
         		choice = JOptionPane.showConfirmDialog(null, "Do you want to process the image stack?", "UMAP option",JOptionPane.YES_NO_CANCEL_OPTION);
@@ -163,22 +194,25 @@ public class Umap_ implements PlugIn {
             if (choice == JOptionPane.CANCEL_OPTION) {return;}
             else if (choice == JOptionPane.OK_OPTION) {
             	processingStack = true;
-            	stack = WindowManager.getCurrentImage();
-            	Filelist = new String[stack.getStackSize()];
+            	stack = WindowManager.getCurrentImage();       	
+        		Filelist = new String[stack.getStackSize()];
             	int height = stack.getHeight();
             	int width = stack.getWidth();
             	imageMatrix = new double[stack.getStackSize()][width*height]; //2D array to hold all images in stack [slice number][pixels as 1D array]
+            	DecimalFormat df = new DecimalFormat("#.######"); //consider allowing the user to set decimal precision, or dynamically change this based on the input data
+            	df.setRoundingMode(RoundingMode.HALF_UP);
             	for (int s = 0; s < stack.getStackSize(); s++) {
             		Filelist[s] = Integer.toString(s+1);
             		stack.setSlice(s+1);
-            		ImageProcessor sip = stack.getProcessor();  	
-                	float[] image1DArray = new float[width*height];	//try double, then float
+            		ImageProcessor sip = stack.getProcessor();
+                	double[] image1DArray = new double[width*height];	//try double, then float
                 	for (int j = 0; j < height; j++) {
                 		for (int k = 0; k < width; k++) {
                 			if (type == ImagePlus.COLOR_RGB) {
                 				image1DArray[k+(j*width)] = sip.get(k, j);
                 			} else {
-                				image1DArray[k+(j*width)] = (float) sip.getInterpolatedValue(k,j); //not sure if casting is appropriate here
+                				image1DArray[k+(j*width)] = Double.parseDouble(df.format(sip.getPixelValue(k,j))); //Attempt to handle floating point error. This will fail past 6 decimal precision, but so will floating point (32-bit image pixel) numbers.
+                				//IJ.log(""+df.format(sip.getPixelValue(k,j)));
                 			}
                 		}
                 	}
@@ -198,7 +232,7 @@ public class Umap_ implements PlugIn {
             }
         }
         //specify a folder to perform uMAP on
-        else if (inputFolderPath.isEmpty() && debugArray == null) {
+        else if (inputFolderPath.isEmpty() && debugArray == null && !processingTable) {
         DirectoryChooser dc = new DirectoryChooser("Select a folder of images to process");
         inputFolderPath = dc.getDirectory();
 	        if (inputFolderPath == null) {
@@ -231,7 +265,7 @@ public class Umap_ implements PlugIn {
     		}
     	}
 		
-    if (debugArray == null && !processingStack) {
+    if (debugArray == null && !processingStack && !processingTable) {
 		//Open the first image in the folder to get dimensions.. could have done it in the loop
 		ImagePlus imp0 = IJ.openImage(inputFolderPath + Filelist[0]);
     	int width = imp0.getWidth();
@@ -561,6 +595,9 @@ public class Umap_ implements PlugIn {
 		    	}
 	    	});
     	}
+    	
+    	processingStack = false;
+    	processingTable = false;
     }
     
     /*

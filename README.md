@@ -1,12 +1,14 @@
 # Dimensionality Reduction (v1.0.4)
-*version release date:17/01/22*</br>
+*version release date:10/08/22*</br>
 
-This plugin captures data from an open image stack or folder of images and performs one of three dimensionality reduction techniques (PCA, t-SNE, or UMAP) to project the high-dimensional data into a lower dimensional (2D) space that is then plotted onto an ImageJ scatter-plot. Under-the-hood, the plugin uses two really-awesome libraries (t-SNE: Leif Jonsson's [pure Java implementation of Van Der Maaten and Hinton's t-sne clustering algorithm](https://github.com/lejon/T-SNE-Java); and UMAP: Jesse Paquette's (of [tag.bio](https://tag.bio/)) [Java implementation of UMAP](https://github.com/tag-bio/umap-java), based on the reference [Python implementation](https://github.com/lmcinnes/umap)). Both are distributed under open-source licences, so even if this plugin doesn't suit you, perhaps their libraries can find a place in your respective projects!<br/>
+This plugin captures data from an open image stack, folder of images, or an open results table and performs one of three dimensionality reduction techniques (PCA, t-SNE, or UMAP) to project the high-dimensional data into a lower dimensional (2D) space that is then plotted onto an ImageJ scatter-plot. Under-the-hood, the plugin uses two really-awesome libraries (t-SNE: Leif Jonsson's [pure Java implementation of Van Der Maaten and Hinton's t-sne clustering algorithm](https://github.com/lejon/T-SNE-Java); and UMAP: Jesse Paquette's (of [tag.bio](https://tag.bio/)) [Java implementation of UMAP](https://github.com/tag-bio/umap-java), based on the reference [Python implementation](https://github.com/lmcinnes/umap)). Both are distributed under open-source licences, so even if this plugin doesn't suit you, perhaps their libraries can find a place in your respective projects!<br/>
 
 The PCA implementation is from Peter Abeles' ([lessthanoptimal](https://github.com/lessthanoptimal)) [efficient java matrix library](https://github.com/lessthanoptimal/ejml). This ImageJ version allows specified principal component axes (e.g. PC-1 vs PC-5) to be plotted and displayed. A specified eigenvector (eigenface) can optionally be reconstructed into an image (NOTE: this option is currently displaying incorrect pixel ranges even if the eigenvectors are true).
 
 From v1.0.3, an interactive scatter plot is output, in addition to the normal ImageJ plot, that allows easy view-toggling of data-clusters and the individual selection of graph points. Clicking on plot points will highlight the corresponding image in an image stack, which is nice for interrogating cluster members and outliers.
 v1.0.4 has added a lasso tool to the interactive plot for counting of multiple points within a selection area. In the future, this may be used for sub-level data analysis or labelling. 
+
+An open results table to process can be named anything (it does not need to be the default 'Results' table), but must only contain numeric data. A label may be used to colour datapoints in the final DR plot, but must be selected separate from the table to process.
 
 ---
 ## Using the 'Dimensionality Reduction' plugin on an image stack or folder of images
@@ -59,9 +61,9 @@ With a label file specified, this plot is produced:</br>
 
 ---
 ## Using the plugin on non-image data
-So images are just ordered arrays of data, therefore it makes sense that these dimensionality reduction techniques can be applied to any non-image data just as well as on images. For convenience, but also because it is an inherently nice way to handle data, to run the plugin on non-image data I recommend encoding that data (e.g. numerical results table/ microarray/ RNA-seq/ or whatever) in an ImageJ image-stack before calling the plugin as usual.
+So images are just ordered arrays of data, therefore it makes sense that these dimensionality reduction techniques can be applied to any non-image data just as well as on images. From v1.0.4, the plugin may be run on any open results table that contains only numeric data. Data may also be encoded in an ImageJ image stack before calling the plugin. Data in an open ImageJ table should be presented as column-dimensions and row-samples (e.g. columns = genes, rows = tissue samples). 
 
-To get you started a convenience function 'Results to Stack' is also included with the plugin, which can be called via the GUI interface:</br>
+For optional image stack encoding, the convenience functions 'Results to Stack' and 'Rows to Columns' are included with the plugin and available in the dropdown menu:</br>
 <img src="https://aws1.discourse-cdn.com/business4/uploads/imagej/original/3X/8/6/863e6bd488ea6d930ab9acc9d12915c6faba7eb8.png" width="352">
 
 Or by macro:
@@ -69,11 +71,11 @@ Or by macro:
 ```javascript
 run("Results to Stack");
 ```
-Which pulls ONLY NUMERICAL data from an ImageJ results table to build an N stack of nx1 images, where N is the number of samples (stacks) and n is the number of dimensions. Maybe counter-intuitively, the table should be ordered with rows as dimensions and columns as samples.
+Which pulls ONLY NUMERICAL data from an ImageJ results table to build an N stack of nx1 images, where N is the number of samples (stacks) and n is the number of dimensions. Maybe counter-intuitively, the table-to-encode should be ordered with rows as dimensions and columns as samples.
 
-Another convenience feature is included 'Rows to Columns', which transposes the data in an open results table. Remember, the 'Dimensionality Reduction' plugin expects N entities to occupy different columns, instead of separate rows. The rows should be reserved for the separate features/dimension data.
+The convenience feature 'Rows to Columns' transposes data in an open results table.
 
-**As an example of the plugin applied to non-image data**, adding RNA-seq data of 837 single-cells from the GTEx project [GSE45878](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE45878) describing the expression of 22704 genes (I may have trimmed the original set a lttle) you can generate this very odd image stack:</br>
+**As an example of the plugin applied to non-image data**, adding RNA-seq data of 837 single-cells from the GTEx project [GSE45878](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE45878) describing the expression of 22704 genes (I may have trimmed the original set a little) you can generate this very odd image stack:</br>
 <img src="https://aws1.discourse-cdn.com/business4/uploads/imagej/original/3X/1/2/122a7d9f889d1b0511b89909720bb4753d485224.png" width="690">
 
 From which you can plot the following (example using UMAP):</br>
@@ -115,7 +117,7 @@ run("PCA", "pca_comp=10 pc_x=1 pc_y=5 eigen_out=10 label_path=[C:/Users/Antinos/
 * Use the mouse wheel to zoom in and out.
 * Double-click the plot to reset the field-of-view and zoom-level.
 * Click on legend icons to toggle data-point visibility on and off.
-* Clicking on individual plot points will highlight the corresponding image in the image stack. If you select another stack of images, this will be used by the plugin if it contains the same number of slices.
+* Clicking on individual plot points will highlight the corresponding image in the image stack. If you select another stack of images, this will be used by the plugin if it contains the same number of slices. Using this method to select data rows in a processed table is currently not available, but will be added in the future.
 * Right-clicking on the graph window will allow the user to copy an image of the plot to the clipboard or to save a fully interactive version of the plot to file.
 * Plot save and load functions are also available in the GUI dropdown menu: Plugins>Dimensionality Reduction>...
 * Dragging with the left mouse button will allow a freehand lasso selection area to be drawn. Visible datapoints will be automatically enumerated in this area.
@@ -155,7 +157,7 @@ Some of the other plugin (macro) parameters I haven't mentioned include:
     * sokalmichener
     * sokalsneath
     * yule
-* 'no_prompt': can be used to suppress the 'process the image stack?' dialogue.
+* 'no_prompt': can be used to suppress the 'process the image stack?' or 'process the open table?' dialogues.
 
 ---
 Future ideas for extending the functions of the 'Dimensionality Reduction' plugin:

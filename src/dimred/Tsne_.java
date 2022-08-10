@@ -3,8 +3,10 @@ package dimred;
 import ij.*;
 import ij.gui.Plot;
 import ij.io.DirectoryChooser;
+import ij.measure.ResultsTable;
 import ij.plugin.PlugIn;
 import ij.process.ImageProcessor;
+import ij.text.TextWindow;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.embed.swing.JFXPanel;
@@ -80,6 +82,7 @@ import javax.swing.SwingUtilities;
 public class Tsne_ implements PlugIn {
 	//Top level initialisation
 	int choice; //JOption 'process the image stack?' choice outcome
+	private boolean processingTable = false;
 	public static ImagePlus stack;
 	double[][] imageMatrix;
 	String[] Filelist;
@@ -154,13 +157,39 @@ public class Tsne_ implements PlugIn {
         // Fill in the options we'll use during this run.
         parseOptions();
         processingStack = false;
+        processingTable = false;
         if (ranSeed != null && !("").equals(ranSeed) && !ranSeed.matches(".*[A-Za-z].*") && Double.valueOf(ranSeed) > 0) {
         	seed = Integer.valueOf(ranSeed);
         }
 		Random rand = new Random();
 		rand.setSeed(seed);
         
-        if (WindowManager.getCurrentImage() != null && (WindowManager.getCurrentImage()).isStack()) {
+		if (WindowManager.getActiveTable() != null && WindowManager.getActiveTable() instanceof TextWindow) {
+        	if (!suppressStackAsk) {
+        		choice = JOptionPane.showConfirmDialog(null, "Do you want to process the open table?", "UMAP option",JOptionPane.YES_NO_CANCEL_OPTION);
+        	} else {
+        		choice = JOptionPane.OK_OPTION;
+        	}
+			if (choice == JOptionPane.CANCEL_OPTION) {return;}
+			else if (choice == JOptionPane.OK_OPTION) {
+				processingTable = true;
+				ResultsTable rt = ResultsTable.getActiveTable(); //may need to make this a higher-level object
+				int tableN = rt.size(); //we could keep calling rt.size below, but fpr very large tables this may add noticable cpu + memory overhead
+				int ColN = rt.getLastColumn(); //as above
+				Filelist = new String[tableN];
+				imageMatrix = new double[tableN][ColN+1]; //Hopefully this works to count all headings... otherwise we will have to create and then enumerate a potentially very large string array (below)
+				//imageMatrix = new double[rt.size()][rt.getHeadings().length];
+				for (int y = 0; y < tableN; y++) {
+					Filelist[y] = Integer.toString(y+1);
+					for (int x = 0; x < ColN+1; x++) {
+						imageMatrix[y][x] = rt.getValueAsDouble(x, y);
+						//IJ.log(""+Double.toString(rt.getValueAsDouble(x, y)));
+					}
+				}
+			}
+		}
+		
+        if (WindowManager.getCurrentImage() != null && (WindowManager.getCurrentImage()).isStack() && !processingTable) {
         	int type = WindowManager.getCurrentImage().getType();
         	if (!suppressStackAsk) {
         		choice = JOptionPane.showConfirmDialog(null, "Do you want to process the image stack?", "t-SNE option",JOptionPane.YES_NO_CANCEL_OPTION);
@@ -205,7 +234,7 @@ public class Tsne_ implements PlugIn {
             }
         }
         //specify a folder to perform tSNE on
-        else if (inputFolderPath.isEmpty() && debugArray == null) {
+        else if (inputFolderPath.isEmpty() && debugArray == null && !processingTable) {
         DirectoryChooser dc = new DirectoryChooser("Select a folder");
         inputFolderPath = dc.getDirectory();
 	        if (inputFolderPath == null) {
@@ -238,7 +267,7 @@ public class Tsne_ implements PlugIn {
     		}
     	}
 		
-    if (debugArray == null && !processingStack) {
+    if (debugArray == null && !processingStack && !processingTable) {
 		//Open the first image in the folder to get dimensions.. could have done it in the loop
 		ImagePlus imp0 = IJ.openImage(inputFolderPath + Filelist[0]);
     	int width = imp0.getWidth();
@@ -519,6 +548,9 @@ public class Tsne_ implements PlugIn {
 	 	    	}
 	     	});
     	}
+    	
+    	processingStack = false;
+    	processingTable = false;
     }
     
     public double[][] tSNE_reduction(double inputArray[][], int initial_dims, double perplexity, int max_iterations) {
