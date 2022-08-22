@@ -45,9 +45,9 @@ run("UMAP", "n_threads=8 n_nearest=20 metric=manhattan");
 This version does not incorporate all the parameter options offered in the parent libraries, but many of the most important are covered.
 
 **As an example**, running UMAP on a subset (total=24,754) of 'handwritten' mnist numbers (0-3) in an image stack of this kind:</br>
-<img src="https://aws1.discourse-cdn.com/business4/uploads/imagej/original/3X/6/2/62bc2ed6e44b7b59a0e25a81e5f6ba831c97e42e.gif" width="100"></br>
+<img src="https://global.discourse-cdn.com/business4/uploads/imagej/original/3X/6/2/62bc2ed6e44b7b59a0e25a81e5f6ba831c97e42e.gif" width="100"></br>
 results in this projection:</br>
-<img src="https://aws1.discourse-cdn.com/business4/uploads/imagej/optimized/3X/d/e/deebda183bd316edd55020e28cac8c8b0ba4673f_2_345x237.png" width="352"> Which nicely represents the 4 groups of numbers!</br>
+<img src="https://global.discourse-cdn.com/business4/uploads/imagej/optimized/3X/d/e/deebda183bd316edd55020e28cac8c8b0ba4673f_2_345x237.png" width="352"> Which nicely represents the 4 groups of numbers!</br>
 We can also specify a 'label' file upon calling the plugin, to colour the datapoints by ground-truth (or whatever), with the following macro command:
 
 ```javascript
@@ -57,7 +57,7 @@ run("UMAP", "label_path=[C:/Users/Antinos/Documents/My_label_file.csv]");
 With the .csv label file structured as a single column of correctly ordered (with respect to the image stack) labels with a single column-header.
 
 With a label file specified, this plot is produced:</br>
-<img src="https://aws1.discourse-cdn.com/business4/uploads/imagej/original/3X/4/0/40b734a3497f90155747ee77cf39ec8b6b64341f.png" width="690">
+<img src="https://global.discourse-cdn.com/business4/uploads/imagej/original/3X/4/0/40b734a3497f90155747ee77cf39ec8b6b64341f.png" width="690">
 
 ---
 ## Using the plugin on non-image data
