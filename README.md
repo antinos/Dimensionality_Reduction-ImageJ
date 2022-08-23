@@ -79,7 +79,7 @@ The convenience feature 'Rows to Columns' transposes data in an open results tab
 <img src="https://aws1.discourse-cdn.com/business4/uploads/imagej/original/3X/1/2/122a7d9f889d1b0511b89909720bb4753d485224.png" width="690">
 
 From which you can plot the following (example using UMAP):</br>
-<img src="https://aws1.discourse-cdn.com/business4/uploads/imagej/optimized/3X/8/4/8400aa72ef49c5abcf54d99f488bf0ba3a472467_2_690x470.png" width="690">
+<img src="https://global.discourse-cdn.com/business4/uploads/imagej/original/3X/8/4/8400aa72ef49c5abcf54d99f488bf0ba3a472467.png" width="690">
 
 ---
 ## PCA specific options
