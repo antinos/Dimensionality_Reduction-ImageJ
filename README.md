@@ -19,7 +19,7 @@ The plugin can be called from a GUI dropdown 'Plugins>Dimensionality Reduction>.
 <img src="https://aws1.discourse-cdn.com/business4/uploads/imagej/original/3X/0/1/01079646466f8060ba6597766c99df4c65d747a2.png" width="352">
 
 Which will result in a dialogue box being presented, allowing the user to select some key parameters:</br>
-<img src="https://aws1.discourse-cdn.com/business4/uploads/imagej/original/3X/e/2/e23b84c397d4682eb4665c9cfc94693052f70fb8.png" width="352">  (UMAP dialogue example)
+<img src="https://global.discourse-cdn.com/business4/uploads/imagej/original/3X/e/2/e23b84c397d4682eb4665c9cfc94693052f70fb8.png" width="352">  (UMAP dialogue example)
 
 Or by macro, with the following:
 
