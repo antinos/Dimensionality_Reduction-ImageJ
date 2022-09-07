@@ -64,7 +64,7 @@ With a label file specified, this plot is produced:</br>
 So images are just ordered arrays of data, therefore it makes sense that these dimensionality reduction techniques can be applied to any non-image data just as well as on images. From v1.0.4, the plugin may be run on any open results table that contains only numeric data. Data may also be encoded in an ImageJ image stack before calling the plugin. Data in an open ImageJ table should be presented as column-dimensions and row-samples (e.g. columns = genes, rows = tissue samples). 
 
 For optional image stack encoding, the convenience functions 'Results to Stack' and 'Rows to Columns' are included with the plugin and available in the dropdown menu:</br>
-<img src="https://aws1.discourse-cdn.com/business4/uploads/imagej/original/3X/8/6/863e6bd488ea6d930ab9acc9d12915c6faba7eb8.png" width="352">
+<img src="https://global.discourse-cdn.com/business4/uploads/imagej/original/3X/8/6/863e6bd488ea6d930ab9acc9d12915c6faba7eb8.png" width="352">
 
 Or by macro:
 
@@ -76,7 +76,7 @@ Which pulls ONLY NUMERICAL data from an ImageJ results table to build an N stack
 The convenience feature 'Rows to Columns' transposes data in an open results table.
 
 **As an example of the plugin applied to non-image data**, adding RNA-seq data of 837 single-cells from the GTEx project [GSE45878](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE45878) describing the expression of 22704 genes (I may have trimmed the original set a little) you can generate this very odd image stack:</br>
-<img src="https://aws1.discourse-cdn.com/business4/uploads/imagej/original/3X/1/2/122a7d9f889d1b0511b89909720bb4753d485224.png" width="690">
+<img src="https://global.discourse-cdn.com/business4/uploads/imagej/original/3X/1/2/122a7d9f889d1b0511b89909720bb4753d485224.png" width="690">
 
 From which you can plot the following (example using UMAP):</br>
 <img src="https://global.discourse-cdn.com/business4/uploads/imagej/original/3X/8/4/8400aa72ef49c5abcf54d99f488bf0ba3a472467.png" width="690">
