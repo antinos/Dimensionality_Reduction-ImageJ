@@ -16,10 +16,10 @@ An open results table to process can be named anything (it does not need to be t
 **NEW: [Youtube tutorial](https://www.youtube.com/watch?v=p90ZYCsKdtw)**
 
 The plugin can be called from a GUI dropdown 'Plugins>Dimensionality Reduction>...'</br>
-<img src="https://global.discourse-cdn.com/business4/uploads/imagej/original/3X/0/1/01079646466f8060ba6597766c99df4c65d747a2.png" width="352">
+<img src="src/main/resources/pics/DimRed_GUI_access-dropdown.png" width="350" />
 
 Which will result in a dialogue box being presented, allowing the user to select some key parameters:</br>
-<img src="https://global.discourse-cdn.com/business4/uploads/imagej/original/3X/e/2/e23b84c397d4682eb4665c9cfc94693052f70fb8.png" width="352">  (UMAP dialogue example)
+<img src="src/main/resources/pics/DimRed_Dialogue_options.png" width="450" />  (UMAP dialogue example)
 
 Or by macro, with the following:
 
@@ -45,26 +45,28 @@ run("UMAP", "n_threads=8 n_nearest=20 metric=manhattan");
 This version does not incorporate all the parameter options offered in the parent libraries, but many of the most important are covered.
 
 **As an example**, running UMAP on a subset (total=24,754) of 'handwritten' mnist numbers (0-3) in an image stack of this kind:</br>
-<img src="https://global.discourse-cdn.com/business4/uploads/imagej/original/3X/6/2/62bc2ed6e44b7b59a0e25a81e5f6ba831c97e42e.gif" width="100"></br>
+<img src="src/main/resources/pics/DimRed_0-3.gif" width="100" /></br>
+
 results in this projection:</br>
-<img src="https://global.discourse-cdn.com/business4/uploads/imagej/optimized/3X/d/e/deebda183bd316edd55020e28cac8c8b0ba4673f_2_345x237.png" width="352"> Which nicely represents the 4 groups of numbers!</br>
+<img src="src/main/resources/pics/DimRed_0-3_no-ground-truth-colour.png" width="350" /> Which nicely represents the 4 groups of numbers!</br>
+
 We can also specify a 'label' file upon calling the plugin, to colour the datapoints by ground-truth (or whatever), with the following macro command:
 
 ```javascript
 run("UMAP", "label_path=[C:/Users/Antinos/Documents/My_label_file.csv]");
-//omitting other specified parameters for clarity of the example
+//omitting other specified parameters for clarity in this example
 ```
 With the .csv label file structured as a single column of correctly ordered (with respect to the image stack) labels with a single column-header.
 
 With a label file specified, this plot is produced:</br>
-<img src="https://global.discourse-cdn.com/business4/uploads/imagej/original/3X/4/0/40b734a3497f90155747ee77cf39ec8b6b64341f.png" width="690">
+<img src="src/main/resources/pics/DimRed_0-3_with-ground-truth-colour.png" width="550" />
 
 ---
 ## Using the plugin on non-image data
 So images are just ordered arrays of data, therefore it makes sense that these dimensionality reduction techniques can be applied to any non-image data just as well as on images. From v1.0.4, the plugin may be run on any open results table that contains only numeric data. Data may also be encoded in an ImageJ image stack before calling the plugin. Data in an open ImageJ table should be presented as column-dimensions and row-samples (e.g. columns = genes, rows = tissue samples). 
 
 For optional image stack encoding, the convenience functions 'Results to Stack' and 'Rows to Columns' are included with the plugin and available in the dropdown menu:</br>
-<img src="https://global.discourse-cdn.com/business4/uploads/imagej/original/3X/8/6/863e6bd488ea6d930ab9acc9d12915c6faba7eb8.png" width="352">
+<img src="src/main/resources/pics/DimRed_GUI_access-dropdown-transform-functions.png" width="350" />
 
 Or by macro:
 
@@ -76,10 +78,10 @@ Which pulls ONLY NUMERICAL data from an ImageJ results table to build an N stack
 The convenience feature 'Rows to Columns' transposes data in an open results table.
 
 **As an example of the plugin applied to non-image data**, adding RNA-seq data of 837 single-cells from the GTEx project [GSE45878](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE45878) describing the expression of 22704 genes (I may have trimmed the original set a little) you can generate this very odd image stack:</br>
-<img src="https://global.discourse-cdn.com/business4/uploads/imagej/original/3X/1/2/122a7d9f889d1b0511b89909720bb4753d485224.png" width="690">
+<img src="src/main/resources/pics/DimRed_GSE45878_image-stack.png" width="690" />
 
 From which you can plot the following (example using UMAP):</br>
-<img src="https://global.discourse-cdn.com/business4/uploads/imagej/original/3X/8/4/8400aa72ef49c5abcf54d99f488bf0ba3a472467.png" width="690">
+<img src="src/main/resources/pics/DimRed_GSE45878_UMAP_coloured-by-truth.png" width="690" />
 
 ---
 ## PCA specific options
@@ -123,6 +125,12 @@ run("PCA", "pca_comp=10 pc_x=1 pc_y=5 eigen_out=10 label_path=[C:/Users/Antinos/
 * Dragging with the left mouse button will allow a freehand lasso selection area to be drawn. Visible datapoints will be automatically enumerated in this area.
 
 <img src="src/main/resources/pics/Dimred_Lasso_Selection_Enumeration_And_Node_Stack_Relation.png" width="690" />
+
+Another example, showcasing dimensionality reduction and the interactive plot applied to an image stack of rotation alphabet letters (A to C):<br/>
+<img src="src/main/resources/pics/Dimred_A-C_rotating.gif" width="100" /><br/>
+<img src="src/main/resources/pics/Dimred_A-C_360-montage.png" width="450" /><br/>
+
+<img src="src/main/resources/pics/Dimred_A-C_example-interactive-plot.gif" /><br/>
 
 ---
 ## Installation and comments
