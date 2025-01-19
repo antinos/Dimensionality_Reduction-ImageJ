@@ -126,11 +126,11 @@ run("PCA", "pca_comp=10 pc_x=1 pc_y=5 eigen_out=10 label_path=[C:/Users/Antinos/
 
 <img src="src/main/resources/pics/Dimred_Lasso_Selection_Enumeration_And_Node_Stack_Relation.png" width="690" />
 
-Another example, showcasing dimensionality reduction and the interactive plot applied to an image stack of rotation alphabet letters (A to C):<br/>
-<img src="src/main/resources/pics/Dimred_A-C_rotating.gif" width="100" /><br/>
-<img src="src/main/resources/pics/Dimred_A-C_360-montage.png" width="450" /><br/>
+Another example, showcasing dimensionality reduction and the interactive plot applied to an image stack of rotation alphabet letters (A to C):
+<br><img src="src/main/resources/pics/Dimred_A-C_rotating.gif" width="100" /><br/>
+<br><img src="src/main/resources/pics/Dimred_A-C_360-montage.png" width="450" /><br/>
 
-<img src="src/main/resources/pics/Dimred_A-C_example-interactive-plot.gif" /><br/>
+<br><img src="src/main/resources/pics/Dimred_A-C_example-interactive-plot.gif" /><br/>
 
 ---
 ## Installation and comments
