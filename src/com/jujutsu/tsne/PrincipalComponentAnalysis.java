@@ -161,7 +161,7 @@ public class PrincipalComponentAnalysis {
         SingularOps_DDRM.descendingOrder(U, false, W, V_t, true);
 
         // strip off unneeded components and find the basis
-        ///////////////////////////////////////////////////////////V_t.reshape(numComponents,mean.length,true);
+        V_t.reshape(numComponents,mean.length,true);
     }
 
     /**
