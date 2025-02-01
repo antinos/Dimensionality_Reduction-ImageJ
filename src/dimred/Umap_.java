@@ -74,7 +74,7 @@ import javax.swing.SwingUtilities;
 
 import plot.plot.SaveFxPlot;
 
-/**version 1.0.4*/
+/**version 1.0.5*/
 
 /**
  * UMAP java implementation using a library from <a href="https://github.com/tag-bio/umap-java/">https://github.com/tag-bio/umap-java</a>. 
@@ -117,6 +117,8 @@ public class Umap_ implements PlugIn {
     static double mouseStartY;
     static int areaNodes;	//count of points within a lasso selection
     static ArrayList<Integer> pointsInLasso = new ArrayList<Integer>();
+    static ArrayList<Double> drPlotXs = new ArrayList<Double>();
+    static ArrayList<Double> drPlotYs = new ArrayList<Double>();
 	
     // Options to use during the run. Defaults for some but otherwise populated when parseOptions() is called.
     private String inputFolderPath;
@@ -575,6 +577,8 @@ public class Umap_ implements PlugIn {
 	                    	if (!multiPath.getElements().isEmpty()) {
 	                    		areaNodes = 0;
 	            	        	pointsInLasso.clear();
+	            	        	drPlotXs.clear();
+	            	        	drPlotYs.clear();
 	            	        	
 	            	            //Iterate over all sc_Fx nodes, series-by-series.
 	            	            for (ScatterChart.Series<Number, Number> series : sc_Fx.getData()) {
@@ -584,6 +588,10 @@ public class Umap_ implements PlugIn {
 	            		                	if (multiPath.contains(data.getNode().getBoundsInParent().getMinX()+xPathOffset, data.getNode().getBoundsInParent().getMinY()+yPathOffset) && data.getNode().isVisible()) {
 	            			                	areaNodes++;
 	            			                	pointsInLasso.add(lookupArray[sc_Fx.getData().indexOf(series)][series.getData().indexOf(data)]);
+	            			                	//drPlotXs.add(node.getBoundsInParent().getMinX()+xPathOffset);
+	            			                	drPlotXs.add(node.getBoundsInLocal().getMinX());
+	            			                	//drPlotYs.add(node.getBoundsInParent().getMinY()+yPathOffset);
+	            			                	drPlotYs.add(node.getBoundsInLocal().getMinY());
 	            			                }
 	            		            	}
 	            	            }
@@ -1179,6 +1187,8 @@ public class Umap_ implements PlugIn {
         		}
 	        	areaNodes = 0;
 	        	pointsInLasso.clear();
+	        	drPlotXs.clear();
+	        	drPlotYs.clear();
 	        	multiPath.getElements().add(new LineTo(mouseStartX, mouseStartY)); //see if moving the line to the path origin makes the next closePath call less jumpy.
 	        	multiPath.getElements().add(new ClosePath());
 	        	
@@ -1202,6 +1212,8 @@ public class Umap_ implements PlugIn {
 		                	if (multiPath.contains(node.getBoundsInParent().getMinX()+xPathOffset, node.getBoundsInParent().getMinY()+yPathOffset) && node.isVisible()) {
 			                	areaNodes++;
 			                	pointsInLasso.add(lookupArray[sc_Fx.getData().indexOf(series)][series.getData().indexOf(data)]);
+			                	drPlotXs.add((Double) data.getXValue());
+			                	drPlotYs.add((Double) data.getYValue());
 			                	//IJ.log("Overlap found.");
 			                	//IJ.log("Overlap coordinates = "+Double.toString(node.getBoundsInParent().getMinX())+", "+Double.toString(node.getBoundsInParent().getMinY()));
 			                	//ImagePlus stack3 = WindowManager.getCurrentImage();
@@ -1265,7 +1277,7 @@ public class Umap_ implements PlugIn {
 	        				 ImageStack subStack = WindowManager.getCurrentImage().createEmptyStack();
 	        				 for (int i = 0; i < areaNodes; i++) {
 	        					 WindowManager.getCurrentImage().setSlice(pointsInLasso.get(i));
-	        					 subStack.addSlice( WindowManager.getCurrentImage().getProcessor());
+	        					 subStack.addSlice(String.valueOf(pointsInLasso.get(i)), WindowManager.getCurrentImage().getProcessor());
 	        				 }
 	        				 ImagePlus subStackImp = new ImagePlus("Sub-stack of "+Integer.toString(areaNodes)+" datapoints", subStack);
 	        				 subStackImp.show();
@@ -1277,7 +1289,15 @@ public class Umap_ implements PlugIn {
 	        	});
 	        	toTable.setOnAction(new EventHandler<ActionEvent>() {
 	        		public void handle(ActionEvent event) {
-	        			IJ.log("toTable was pressed.");
+	        			//IJ.log("toTable was pressed.");
+	        			ResultsTable newrt = new ResultsTable();
+	        			for (int i = 0; i < areaNodes; i++) {
+	        				newrt.addRow();
+	        				newrt.addValue("Original stack position", pointsInLasso.get(i));
+	        				newrt.addValue("DR plot X", drPlotXs.get(i));
+	        				newrt.addValue("DR plot Y", drPlotYs.get(i));
+	        			}
+	        			newrt.show("Selected graph nodes");
 	        		}
 	        	});
 	        	e2.consume();

@@ -73,7 +73,7 @@ import javax.swing.JFrame;
 import javax.swing.JOptionPane;
 import javax.swing.SwingUtilities;
 
-/**version 1.0.4*/
+/**version 1.0.5*/
 
 /*
  * tSNE java implementation from https://github.com/lejon/T-SNE-Java
@@ -1116,7 +1116,7 @@ public class Tsne_ implements PlugIn {
 	        				 ImageStack subStack = WindowManager.getCurrentImage().createEmptyStack();
 	        				 for (int i = 0; i < areaNodes; i++) {
 	        					 WindowManager.getCurrentImage().setSlice(pointsInLasso.get(i));
-	        					 subStack.addSlice( WindowManager.getCurrentImage().getProcessor());
+	        					 subStack.addSlice(String.valueOf(pointsInLasso.get(i)), WindowManager.getCurrentImage().getProcessor());
 	        				 }
 	        				 ImagePlus subStackImp = new ImagePlus("Sub-stack of "+Integer.toString(areaNodes)+" datapoints", subStack);
 	        				 subStackImp.show();

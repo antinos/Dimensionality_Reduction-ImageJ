@@ -1,5 +1,5 @@
-# Dimensionality Reduction (v1.0.4)
-*version release date:10/08/22*</br>
+# Dimensionality Reduction (v1.0.5)
+*version release date:01/02/25*</br>
 
 This plugin captures data from an open image stack, folder of images, or an open results table and performs one of three dimensionality reduction techniques (PCA, t-SNE, or UMAP) to project the high-dimensional data into a lower dimensional (2D) space that is then plotted onto an ImageJ scatter-plot. Under-the-hood, the plugin uses two really-awesome libraries (t-SNE: Leif Jonsson's [pure Java implementation of Van Der Maaten and Hinton's t-sne clustering algorithm](https://github.com/lejon/T-SNE-Java); and UMAP: Jesse Paquette's (of [tag.bio](https://tag.bio/)) [Java implementation of UMAP](https://github.com/tag-bio/umap-java), based on the reference [Python implementation](https://github.com/lmcinnes/umap)). Both are distributed under open-source licences, so even if this plugin doesn't suit you, perhaps their libraries can find a place in your respective projects!<br/>
 
@@ -99,18 +99,32 @@ Specify which principal component axes to display on the 'PCA output' scatterplo
 run("PCA", "pc_x=5 pc_y=6");
 ```
 
-Specify an eigenvector (eigenface) to recompose and display as an image: <br/>
-**(Note: this option is partially working. I believe the eigenvectors are true but the pixel display range is off)**
+Specify eigenvectors (eigenfaces) to recompose and display as an image(stack): <br/>
+**(Note: this seems to work well for 8-bit and 16-bit images, but mapping to other output image bitdepths needs more work.)**
 
 ```javascript
 // Display the first eigenvector, corresponding to principal component 1.
 run("PCA", "eigen_out=1");
+
+// Dispay a range of eigenvectors, using commas and/or hyphens
+run("PCA", "pca_comp=50 eigen_out=1,2,3,5-25,27,30");
+```
+
+For example, specifying the output of the first 12 eigenvectors from a stack like this:</br>
+<img src="src/main/resources/pics/DimRed_cat-substack.gif" /></br>
+Results in:</br>
+<img src="src/main/resources/pics/DimRed_Eigenkitties1-12.png" />
+
+Requesting a mean image be output:
+
+```javascript
+run("PCA", "mean_out");
 ```
 
 Example setting multiple parameters:
 
 ```javascript
-run("PCA", "pca_comp=10 pc_x=1 pc_y=5 eigen_out=10 label_path=[C:/Users/Antinos/Documents/My_label_file.csv]");
+run("PCA", "pca_comp=10 pc_x=1 pc_y=5 eigen_out=1-10 mean_out label_path=[C:/Users/Antinos/Documents/My_label_file.csv]");
 ```
 
 ---

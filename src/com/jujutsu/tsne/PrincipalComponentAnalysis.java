@@ -76,7 +76,7 @@ public class PrincipalComponentAnalysis {
     private int sampleIndex;
 
     // mean values of each element across all the samples
-    double mean[];
+    public double mean[];
 
     public PrincipalComponentAnalysis() {
     }
@@ -161,7 +161,7 @@ public class PrincipalComponentAnalysis {
         SingularOps_DDRM.descendingOrder(U, false, W, V_t, true);
 
         // strip off unneeded components and find the basis
-        V_t.reshape(numComponents,mean.length,true);
+        ///////////////////////////////////////////////////////////V_t.reshape(numComponents,mean.length,true);
     }
 
     /**
@@ -239,27 +239,6 @@ public class PrincipalComponentAnalysis {
 
         return s.data;
     }
-    
-    public double getMeanU( int i ) {
-        if( i >= U.getNumCols() )
-            throw new IllegalArgumentException("Mean value must be within the sample range (stack number)");
-        
-        double[] meanU = new double[A.getNumRows()];
-        //IJ.log("MeanU length = "+Integer.toString(meanU.length)); //
-        
-        // compute the mean of all the samples
-        for( int x = 0; x < meanU.length; x++ ) {	//400
-            for( int y = 0; y < A.getNumCols(); y++ ) { //4096
-                meanU[x] += A.get(x,y);
-            }
-        }
-        for( int j = 0; j < meanU.length; j++ ) {
-            meanU[j] /= A.getNumCols();
-        }       
-        
-        return meanU[i];
-    }
-
 
     /**
      * <p>
@@ -357,13 +336,18 @@ public class PrincipalComponentAnalysis {
     }
     */
     
-    public double[] getW() {
-        
-        //DMatrixRMaj w = new DMatrixRMaj(W.numRows, 1);//
-        DMatrixRMaj w = new DMatrixRMaj(W.numRows, W.numCols);
-        //CommonOps_DDRM.extract(W, 0, A.numRows, which, which + 1, u, 0, 0);
-        
-        
+    /**
+     * Returns an eigen-vector from W. As this is a diagonal matrix, most values are 0, therefore only the numerical element is output, resulting in an array of size 1. NOTE: consider changing to allow the product of multiple eigenvectors to be returned, if requested.
+     *
+     * @param which Which component's vector is to be returned.
+     * @return Vector from W.
+     */
+    public double[] getW( int which ) {
+        if( which < 0 || which >= A.numCols )
+            throw new IllegalArgumentException("Invalid vector");
+    	
+        DMatrixRMaj w = new DMatrixRMaj(W.numRows, 1);
+        CommonOps_DDRM.extract(W, which, which + 1, which, which + 1, w, 0, 0);  
         
         return w.data;
     }

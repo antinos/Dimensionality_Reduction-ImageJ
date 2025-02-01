@@ -67,7 +67,7 @@ import plot.plot.SaveFxPlot;
 import com.jujutsu.tsne.PrincipalComponentAnalysis;
 import com.jujutsu.utils.MatrixUtils;
 
-/**version 1.0.4*/
+/**version 1.0.5*/
 
 public class Pca_ implements PlugIn {
 	//top level initialisation
@@ -82,6 +82,8 @@ public class Pca_ implements PlugIn {
 	public static String[] uniqueArray;
 	public static double[] Pcomp1;
 	public static double[] Pcomp2;
+	public static double[] pcaMean; //mean of each element across all input samples, taken from PrincipalComponentAnalysis class
+	public static double[] W; //diagonal matrix from SVD
 	static String groupLabel;
 	int bitD;
 	int width;
@@ -113,7 +115,10 @@ public class Pca_ implements PlugIn {
     private String inputFolderPath;
     private int pca_comp = 2; //was 2
     private String inputIndexPath; //show the plugin where sample labels are located.. used to colour the final output.
-    private int eigen_out = -1; //eigenvector output from those computed
+    private String eigenOutString;
+    private boolean eigen_out = false; //eigenvector output from those computed
+    private String[] eigenOutStringArray;
+    private int[] eigenOutArray;
     private static int pcompX = 1;
     private static int pcompY = 2;
     private String ranSeed;
@@ -121,6 +126,8 @@ public class Pca_ implements PlugIn {
 	private boolean outputCSV = false; //create a CSV copy of the dimensionality-reduction output XYs on the users desktop.
 	private boolean suppressStackAsk = false;
 	private boolean suppressFx = false;
+	private boolean suppressPlot = false;
+	private boolean mean_out = false;
     //private boolean logTransform = false;
     //private boolean cenAndScale = false;
 	
@@ -213,8 +220,8 @@ public class Pca_ implements PlugIn {
 	         else if (choice == JOptionPane.OK_OPTION) {
 	            	processingStack = true;
 	            	stack = WindowManager.getCurrentImage();
-	            		//Get bitDepth
-	            		bitD = stack.getBitDepth();
+	            	//Get bitDepth
+	            	bitD = stack.getBitDepth();
 	            	Filelist = new String[stack.getStackSize()];
 	            	height = stack.getHeight();
 	            	width = stack.getWidth();
@@ -364,54 +371,126 @@ public class Pca_ implements PlugIn {
 	    	 // get and plot 2 sample vectors corresponding to specified principal components, or the first 2 if none are specified
 	    	 if (pca_comp >= 0) {
 	    		Pcomp1 = pca.getU(pcompX-1);
-	    		
 	    		if (pca_comp < 2) {
-	    		Pcomp2 = pca.getU(pcompX-1);
+	    			Pcomp2 = pca.getU(pcompX-1);
 	    		} else {
 	    			Pcomp2 = pca.getU(pcompY-1);
 	    		}
-	    		if (eigen_out > 0 && eigen_out <= pca_comp) {
-	    			double[] eigenX = pca.getBasisVector(eigen_out-1);
-	    			//eigenX = pca.eigenUToSampleSpace(eigenX);
+	    		if (eigen_out) {
+	    			//Create a stack here
+	    			//ImageStack eigenStack = new ImageStack(width, height, eigenOutArray.length);
+    				ImagePlus outputPlus = NewImage.createImage("Eigenvector(s): ["+eigenOutString+"]", width, height, eigenOutArray.length, bitD, NewImage.FILL_BLACK);
+    				ImageStack eigenStack = outputPlus.getStack();
+    				ResultsTable eigenTable = new ResultsTable();
+    				//ImageProcessor outputProc = outputPlus.getProcessor();	
+	    			for (int k = 0; k < eigenOutArray.length; k++) {
+			    		if (eigenOutArray[k] > 0 && eigenOutArray[k] <= pca_comp) { //do I need to check against pca_comp here?
+			    			double[] eigenX = pca.getBasisVector(eigenOutArray[k]-1);
+			    			//IJ.log("BasisVector is composed of "+Double.toString(pca.getBasisVector(eigen_out-1).length)+" elements.");
+			    			if (processingTable) {
+			    				//ResultsTable eigenTable = new ResultsTable();
+			    				for (int i = 0; i < eigenX.length; i++) {
+			    					eigenTable.setValue(i, k, eigenX[i]);
+			    				}
+			    				//eigenTable.show("Eigenvector "+ String.valueOf(eigenOutArray[k]));
+			    			} else {
+			    				outputPlus.setSlice(k+1);
+			    				ImageProcessor outputProc = outputPlus.getProcessor();	
+			    				if (eigenX.length != (width*height)) {
+			    					IJ.log("Error: could not reconstruct eigenvector " + String.valueOf(eigenOutArray[k]) + " as an image, as its length does not equal the orginal image width*height.");
+			    				} else {
+			    					//pcaMean = pca.mean; //better to access via a 'get' function (which I can add to the PrincipalComponent class) rather than making the variable public
+			    					double maxNumber = 0;
+			    					double minNumber = 0;
+			    					for (int i = 0; i < height; i++) {
+				    					for (int j = 0; j < width; j++) {
+				    						if (eigenX[j+(i*width)] > maxNumber) {
+				    							maxNumber = eigenX[j+(i*width)];	//may need to evaluate the square of eigenX, to account for 'highest' negative numbers
+				    						}
+				    						if (eigenX[j+(i*width)] < minNumber) {
+				    							minNumber = eigenX[j+(i*width)];	//may need to evaluate the square of eigenX, to account for 'highest' negative numbers
+				    						}
+				    					}
+			    					}
+			    					//IJ.log("maxNumber = "+Double.toString(maxNumber));
+			    					boolean minUnderZero = false;
+			    					boolean minOverZero = false;
+			    					double scaleFactor = 1;
+			    					if (minNumber < 0) {
+			    						minUnderZero = true;
+			    						minNumber = Math.sqrt(minNumber*minNumber);
+			    						maxNumber = maxNumber+minNumber;
+			    						scaleFactor = (Math.pow(2,bitD)-1)/(maxNumber); //bitD will only be available for image processing, perhaps I should set the default value to 1. Table processing is handled differently.
+			    					} else if (minNumber > 0) {
+			    						minOverZero = true;
+			    						maxNumber = maxNumber-minNumber;
+			    						scaleFactor = (Math.pow(2,bitD)-1)/(maxNumber);
+			    					}
+				    				for (int i = 0; i < height; i++) {
+				    					for (int j = 0; j < width; j++) {
+				    						//Shift and scale all eigevector values to span the image bit depth range (e.g. 0-255 for 8-bit)
+				    						if (minUnderZero) {
+				    							eigenX[j+(i*width)] = eigenX[j+(i*width)]+minNumber;
+				    						} else if(minOverZero) {
+				    							eigenX[j+(i*width)] = eigenX[j+(i*width)]-minNumber;
+				    						}
+				    						outputProc.set(j, i, (int) Math.ceil(scaleFactor*eigenX[j+(i*width)]));
+				    					}
+				    				}
+				    				//outputPlus.show();
+			    				}
+			    				
+			    			}
+		
+			    		} else {
+			    			IJ.log("Could not output the specified eigenvector ["+String.valueOf(eigenOutArray[k])+"] as it is less than 1 or greater than the number of computed principal components.");
+			    		}
+			    		eigenStack.setSliceLabel(""+String.valueOf(eigenOutArray[k]), k+1);
+	    			}
+	    			if (processingTable) {
+	    				eigenTable.show("Eigenvector(s): ["+eigenOutString+"]");
+	    			} else {
+		    			outputPlus.setStack(eigenStack);
+		    			outputPlus.show();
+	    			}
+	    		}
+	    		if (mean_out) {
+	    			pcaMean = pca.mean;
 	    			if (processingTable) {
 	    				ResultsTable eigenTable = new ResultsTable();
-	    				for (int i = 0; i < eigenX.length; i++) {
-	    					eigenTable.setValue(i, 0, eigenX[i]);
+	    				for (int i = 0; i < pcaMean.length; i++) {
+	    					eigenTable.setValue(i, 0, pcaMean[i]);
 	    				}
-	    				eigenTable.show("Eigenvector "+ String.valueOf(eigen_out));
+	    				eigenTable.show("Mean of all samples");
 	    			} else {
-	    				ImagePlus outputPlus = NewImage.createImage("Eigenvector " + String.valueOf(eigen_out), width, height, 1, bitD, NewImage.FILL_BLACK);
+	    				ImagePlus outputPlus = NewImage.createImage("Mean image of all input samples", width, height, 1, bitD, NewImage.FILL_BLACK);
 	    				ImageProcessor outputProc = outputPlus.getProcessor();
-	    				
-	    				IJ.log("mean["+Integer.toString(eigen_out)+"] = " + Double.toString(pca.getMeanU(eigen_out-1)));
-	    				
-	    				if (eigenX.length != (width*height)) {
-	    					IJ.log("Error: could not reconstruct eigenvector " + String.valueOf(eigen_out) + " as an image, as its length does not equal the orginal image width*height.");
+	    				if (pcaMean.length != (width*height)) {
+	    					IJ.log("Error: could not reconstruct the mean image vector, as its length does not equal the orginal image width*height.");
 	    				} else {
+	    					pcaMean = pca.mean;
 		    				for (int i = 0; i < height; i++) {
 		    					for (int j = 0; j < width; j++) {
-		    						//outputProc.setf(j, i, (float) ((eigenX[j+(i*width)])+pca.getMeanU(eigen_out-1)));	//*5000 is a dirty fudge factor. This isn't what you are meant to do to get eigenvectors but the output is visually pleasing for 8-bit eigenfaces.
-		    						//outputProc.setf(j, i, (float) ((eigenX[j+(i*width)])*(eigenX[j+(i*width)])));
-		    						outputProc.set(j, i, (int) ((eigenX[j+(i*width)])*5000));
+		    						outputProc.set(j, i, (int) ((pcaMean[j+(i*width)])));
 		    					}
 		    				}
 		    				outputPlus.show();
 	    				}
 	    			}
-
-	    		} else if (eigen_out == -1) {
-	    			//default value. We'll assume the user did not select to output an eigenvector.
-	    		} else {
-	    			IJ.log("Could not output the specified eigenvector as it is less than 1 or greater than the number of computed principal components.");
 	    		}
 	    		
 	    		//print PC1 explains X amount of variance
-	    		IJ.log("W = "+Arrays.toString(pca.getW()));
+	    		//Plot singular values sotred in W, to show how fast singular values decay.
+	    		//IJ.log("W = "+Arrays.toString(pca.getW(0)));
 	    		
-	            plotTitle = new String("PCA output");
-	            xTitle = "PC "+ Integer.toString(pcompX);
-	            yTitle = "PC " + Integer.toString(pcompY);
-	        	Plot scatter = new Plot(plotTitle, xTitle, yTitle);
+	    		/*
+	    		if (!suppressPlot) {
+		            plotTitle = new String("PCA output");
+		            xTitle = "PC "+ Integer.toString(pcompX);
+		            yTitle = "PC " + Integer.toString(pcompY);
+		        	Plot scatter = new Plot(plotTitle, xTitle, yTitle);
+	    		}
+	    		*/
 	        	
 	        	if (!suppressFx) {
 		        	Runnable runnable = () -> {
@@ -428,112 +507,117 @@ public class Pca_ implements PlugIn {
 		    		}
 	        	}
 	        	
-	        	if (labelsArray == null) {
-	        		scatter.setLineWidth(5);
-	        		scatter.addPoints(Pcomp1, Pcomp2, 6);
-	        		scatter.show();
-	        		uniqueArray = new String[1];
-	        		uniqueArray[0] = "Data";
-	        		labelsArray = new String[Pcomp1.length];	//Creating and filling the label array is maybe not ideal
-	        		Arrays.fill(labelsArray, "Data");
-	        		groupColours = new Color[1];
-	        		groupColours[0] = Color.BLACK;
-	        		
-	        		if (!suppressFx) {
-		        		//javafx code below
-		    			groupLabel = "Non-coloured data";
-		            	Platform.runLater(new Runnable() {
-		            		@Override
-		        	    	public void run() {
-		            			sc_Fx = addSeries(sc_Fx, Pcomp1, Pcomp2, groupLabel, Color.BLACK);
-		            		}
-		        		});
-	        		}
-	            	lookupArray = new int[1][Pcomp1.length];
-	            	//Arrays.setAll(lookupArray, i -> i + 1); //lambda equivalent of below loop
-	            	for (int z = 0; z < Pcomp1.length; z++) {
-	            		lookupArray[0][z] = z+1;
-	            	}
-	        	} else {
-	        		//some method to count unique entries (groups) in the labels array here. I expect processing overhead time-loss associated with this 'else' code.
-	        		ArrayList<String> uniqueArrayList = new ArrayList<>();
-	        	    for(int i=0; i<labelsArray.length; i++){
-	        	        if(!uniqueArrayList.contains(labelsArray[i])){
-	        	            uniqueArrayList.add(labelsArray[i]);
-	        	        }
-	        	    }
-	        		int groupN = uniqueArrayList.size();
-	        		uniqueArray = new String[groupN];
-	        		uniqueArrayList.toArray(uniqueArray);
-	        		lookupArray = new int[groupN][];	// Set the number of label groups to a staggered lookup table 2D array... will be used to find the position of images in the original stack
-	        		
-	        		groupColours = new Color[groupN];	        		
-	        		for (int y = 0; y < groupN; y++) {
-	        			int counter = 0;
-	        			for (int z = 0; z < labelsArray.length; z++) {
-	        				if (labelsArray[z].equals(uniqueArray[y])) {
-	        					counter++;
-	        				}
-	        			}
-	        			lookupArray[y] = new int[counter];
-	        				//IJ.log(uniqueArray[y]+" is present "+String.valueOf(counter)+" time(s) in the labelsArray.");
-	        				//IJ.log("debugArray.length = "+Integer.toString(debugArray.length)+", debugArray[0].length = "+Integer.toString(debugArray[0].length));
-	        			double[] XXarray = new double[counter];
-	        			double[] YYarray = new double[counter];
-	        			counter = 0;
-	        			for (int z = 0; z < labelsArray.length; z++) {
-	        				if (labelsArray[z].equals(uniqueArray[y])) {
-	        						//IJ.log("unique array contents = "+uniqueArray[y]+", XXarray length = "+Integer.toString(XXarray.length)+", YYarray length = "+Integer.toString(YYarray.length)+", y = "+Integer.toString(y)+", Pcomp1 length = "+Integer.toString(Pcomp1.length)+", Pcomp2 length = "+Integer.toString(Pcomp2.length)+"");
-	        					XXarray[counter] = Pcomp1[z];
-	        					YYarray[counter] = Pcomp2[z];
-	        					lookupArray[y][counter] = z+1;
-	        					counter++;
-	        				}
-	        			}
-	            		//Randomly generate an rgb colour and add the datapoint of that colour to the plot.
-	        			int r = rand.nextInt(230);
-	        			int g = rand.nextInt(230);
-	        			int b = rand.nextInt(230);
-	        			ranCol = new Color(r,g,b);
-	        			groupColours[y] = ranCol;
-	        			scatter.setColor(ranCol);
-	        			scatter.setLineWidth(5);
-	        			scatter.addPoints(XXarray, YYarray, 6);
-	        			
-	        			if (!suppressFx) {
-		        			//javafx code below
-		    				groupLabel = uniqueArray[y];
-		    				final int w = y;
-		    		    	Runnable runnable2 = () -> {
-		    		    		sc_Fx = addSeries(sc_Fx, XXarray, YYarray, groupLabel, groupColours[w]);
-		    		    	};
-		    	    		FutureTask<Void> task2 = new FutureTask<>(runnable2, null);
-		    	            Platform.runLater(task2);
-		    	            try {
-		    	    			task2.get();
-		    	    		} catch (InterruptedException e) {
-		    	    			e.printStackTrace();
-		    	    		} catch (ExecutionException e) {
-		    	    			e.printStackTrace();
-		    	    		}
-	        			}
-	        		}
-	        		StringBuilder sb = new StringBuilder();
-	        		for (int y = 0; y < groupN; y++) {
-	        			if (y != groupN-1) {
-	        				sb.append(uniqueArray[y]);
-	        				sb.append(System.getProperty("line.separator"));
-	        			} else {
-	        				sb.append(uniqueArray[y]);
-	        			}
-	        		}
-	        		String legendLabels = sb.toString();
-	        		scatter.addLegend(legendLabels);
-	        		scatter.show();
-	        		scatter.setLimitsToFit(true);
-	        		//IJ.log("File list: "+Arrays.toString(Filelist));
+	        	if (!suppressPlot) {
+		            plotTitle = new String("PCA output");
+		            xTitle = "PC "+ Integer.toString(pcompX);
+		            yTitle = "PC " + Integer.toString(pcompY);
+		        	Plot scatter = new Plot(plotTitle, xTitle, yTitle);
+		        	if (labelsArray == null) {
+		        		scatter.setLineWidth(5);
+		        		scatter.addPoints(Pcomp1, Pcomp2, 6);
+		        		scatter.show();
+		        		uniqueArray = new String[1];
+		        		uniqueArray[0] = "Data";
+		        		labelsArray = new String[Pcomp1.length];	//Creating and filling the label array is maybe not ideal
+		        		Arrays.fill(labelsArray, "Data");
+		        		groupColours = new Color[1];
+		        		groupColours[0] = Color.BLACK;
+		        		
+		        		if (!suppressFx) {
+			        		//javafx code below
+			    			groupLabel = "Non-coloured data";
+			            	Platform.runLater(new Runnable() {
+			            		@Override
+			        	    	public void run() {
+			            			sc_Fx = addSeries(sc_Fx, Pcomp1, Pcomp2, groupLabel, Color.BLACK);
+			            		}
+			        		});
+		        		}
+		            	lookupArray = new int[1][Pcomp1.length];
+		            	//Arrays.setAll(lookupArray, i -> i + 1); //lambda equivalent of below loop
+		            	for (int z = 0; z < Pcomp1.length; z++) {
+		            		lookupArray[0][z] = z+1;
+		            	}
+		        	} else {
+		        		//some method to count unique entries (groups) in the labels array here. I expect processing overhead time-loss associated with this 'else' code.
+		        		ArrayList<String> uniqueArrayList = new ArrayList<>();
+		        	    for(int i=0; i<labelsArray.length; i++){
+		        	        if(!uniqueArrayList.contains(labelsArray[i])){
+		        	            uniqueArrayList.add(labelsArray[i]);
+		        	        }
+		        	    }
+		        		int groupN = uniqueArrayList.size();
+		        		uniqueArray = new String[groupN];
+		        		uniqueArrayList.toArray(uniqueArray);
+		        		lookupArray = new int[groupN][];	// Set the number of label groups to a staggered lookup table 2D array... will be used to find the position of images in the original stack
+		        		
+		        		groupColours = new Color[groupN];	        		
+		        		for (int y = 0; y < groupN; y++) {
+		        			int counter = 0;
+		        			for (int z = 0; z < labelsArray.length; z++) {
+		        				if (labelsArray[z].equals(uniqueArray[y])) {
+		        					counter++;
+		        				}
+		        			}
+		        			lookupArray[y] = new int[counter];
+		        				//IJ.log(uniqueArray[y]+" is present "+String.valueOf(counter)+" time(s) in the labelsArray.");
+		        				//IJ.log("debugArray.length = "+Integer.toString(debugArray.length)+", debugArray[0].length = "+Integer.toString(debugArray[0].length));
+		        			double[] XXarray = new double[counter];
+		        			double[] YYarray = new double[counter];
+		        			counter = 0;
+		        			for (int z = 0; z < labelsArray.length; z++) {
+		        				if (labelsArray[z].equals(uniqueArray[y])) {
+		        						//IJ.log("unique array contents = "+uniqueArray[y]+", XXarray length = "+Integer.toString(XXarray.length)+", YYarray length = "+Integer.toString(YYarray.length)+", y = "+Integer.toString(y)+", Pcomp1 length = "+Integer.toString(Pcomp1.length)+", Pcomp2 length = "+Integer.toString(Pcomp2.length)+"");
+		        					XXarray[counter] = Pcomp1[z];
+		        					YYarray[counter] = Pcomp2[z];
+		        					lookupArray[y][counter] = z+1;
+		        					counter++;
+		        				}
+		        			}
+		            		//Randomly generate an rgb colour and add the datapoint of that colour to the plot.
+		        			int r = rand.nextInt(230);
+		        			int g = rand.nextInt(230);
+		        			int b = rand.nextInt(230);
+		        			ranCol = new Color(r,g,b);
+		        			groupColours[y] = ranCol;
+		        			scatter.setColor(ranCol);
+		        			scatter.setLineWidth(5);
+		        			scatter.addPoints(XXarray, YYarray, 6);
+		        			
+		        			if (!suppressFx) {
+			        			//javafx code below
+			    				groupLabel = uniqueArray[y];
+			    				final int w = y;
+			    		    	Runnable runnable2 = () -> {
+			    		    		sc_Fx = addSeries(sc_Fx, XXarray, YYarray, groupLabel, groupColours[w]);
+			    		    	};
+			    	    		FutureTask<Void> task2 = new FutureTask<>(runnable2, null);
+			    	            Platform.runLater(task2);
+			    	            try {
+			    	    			task2.get();
+			    	    		} catch (InterruptedException e) {
+			    	    			e.printStackTrace();
+			    	    		} catch (ExecutionException e) {
+			    	    			e.printStackTrace();
+			    	    		}
+		        			}
+		        		}
+		        		StringBuilder sb = new StringBuilder();
+		        		for (int y = 0; y < groupN; y++) {
+		        			if (y != groupN-1) {
+		        				sb.append(uniqueArray[y]);
+		        				sb.append(System.getProperty("line.separator"));
+		        			} else {
+		        				sb.append(uniqueArray[y]);
+		        			}
+		        		}
+		        		String legendLabels = sb.toString();
+		        		scatter.addLegend(legendLabels);
+		        		scatter.show();
+		        		scatter.setLimitsToFit(true);
+		        		//IJ.log("File list: "+Arrays.toString(Filelist));
+		        	}
 	        	}
-	    		
 	    	 }
 	    	 
 	    	 if (!suppressFx) {
@@ -661,8 +745,71 @@ public class Pca_ implements PlugIn {
         pcompX = Integer.parseInt(Macro.getValue(optionsStr, "pc_x", "1"));
         pcompY = Integer.parseInt(Macro.getValue(optionsStr, "pc_y", "2"));
         
-        // Output a specified eigenvector (eigenface).
-        eigen_out = Integer.parseInt(Macro.getValue(optionsStr, "eigen_out", "-1"));
+        // Output specified eigenvectors (eigenfaces).
+        //Note: The below function should probably be factorised into a discrete method to clean up the code.
+        eigenOutString = Macro.getValue(optionsStr, "eigen_out", "");
+        eigenOutString = eigenOutString.trim();
+        eigenOutString = eigenOutString.replaceAll("[^\\d,-]+",""); //remove all non-numbers (not including commas or hyphens)
+        eigenOutString = eigenOutString.replaceAll("(,)\\1+",","); //replace all consecutive repeating commas with one
+        if (eigenOutString.startsWith(",")) {
+        	eigenOutString = eigenOutString.substring(1);
+        }
+        eigenOutStringArray = eigenOutString.split(",");
+        String rangeString = "";
+        if (eigenOutStringArray.length > 0 && eigenOutStringArray[0] != "") {
+	        for (int i = 0; i < eigenOutStringArray.length; i++) {
+	        	if (eigenOutStringArray[i].contains("-")) {
+	        		String[] subString = new String[2];
+	        		try {
+	        			subString = eigenOutStringArray[i].split("-");
+	        			int lowNum = Integer.parseInt(subString[0]);
+	        			int highNum = Integer.parseInt(subString[1]);
+	        			if (highNum <= lowNum) {
+	        				IJ.log("The specfied range of 'eigen_out' ["+subString[0]+"-"+subString[1]+"] cannot go from higher to lower, or be the same number.");
+	        				continue;
+	        			}
+	        			for (int j = lowNum; j <= highNum; j++) {
+	        				if (j == lowNum && i == 0) {
+	        					rangeString = rangeString+String.valueOf(j);
+	        				} else {
+	        				rangeString = rangeString+","+String.valueOf(j);
+	        				}
+	        			}
+	        		}
+	        		catch(Exception e) {
+	        			IJ.log("The specified eigen_out range was not valid.\nSingle numbers should be separated with a ','(comma).\nDiscrete ranges should be separated with a '-'(hyphen).\nAvoid using multiple hyphen within the same comma block (e.g. '1-10-15' is not valid).");
+	        			IJ.handleException(e);
+	        		}
+	        	} else if(i==0) {
+	        		rangeString = rangeString+String.valueOf(eigenOutStringArray[i]);
+	        	} else {
+	        		rangeString = rangeString+","+String.valueOf(eigenOutStringArray[i]);
+	        	}
+	        }
+	        rangeString = rangeString.replaceAll("[^\\d,]+",""); //remove all non-numbers (not including commas)
+	        rangeString = rangeString.replaceAll("(,)\\1+",","); //replace all consecutive repeating commas with one
+	        //the below startsWith and endsWith block is probably not needed
+	        if (rangeString.startsWith(",")) {
+	        	rangeString = rangeString.substring(1);
+	        }
+	        if (rangeString.endsWith(",")) {
+	        	rangeString = rangeString.substring(0, rangeString.length()-1);
+	        }
+	        //IJ.log("eigen_out range = "+rangeString);
+	        eigenOutString = rangeString;
+	        eigenOutStringArray = rangeString.split(",");
+	        eigenOutArray = new int[eigenOutStringArray.length];
+	        for (int i = 0; i < eigenOutStringArray.length; i++) {
+	        	eigenOutArray[i] = Integer.parseInt(eigenOutStringArray[i]);
+	        }
+	        if (eigenOutArray != null || eigenOutArray.length > 0) {
+	        	eigen_out = true;
+	        }
+	        Arrays.sort(eigenOutArray);
+        }
+        
+        // Output the mean sample
+        mean_out = optionsStr.contains("mean_out");
         
         // Get a random seed from the user or use the default.
         ranSeed = Macro.getValue(optionsStr, "seed", "5");
@@ -675,6 +822,9 @@ public class Pca_ implements PlugIn {
         
         // Suppress the creation of an interactive FX-plot
         suppressFx = optionsStr.contains("no_fx");
+        
+        // Suppress the creation of the default ImageJ plot
+        suppressPlot = optionsStr.contains("no_plot");
 
     }
     
@@ -890,7 +1040,7 @@ public class Pca_ implements PlugIn {
     
     private static void zoomAndPan() {
         //adapted from https://stackoverflow.com/questions/22099650/zoom-bar-chart-with-mouse-wheel
-    	Node chartBackground = sc_Fx.lookup(".chart-plot-background");			///////////////////////////////////////////////////////////////////////////////////
+    	Node chartBackground = sc_Fx.lookup(".chart-plot-background");
     	chartBackground.setOnScroll(new EventHandler<ScrollEvent>() {
     	    public void handle(ScrollEvent event) {
     	        event.consume();
@@ -1105,7 +1255,7 @@ public class Pca_ implements PlugIn {
 	        				 ImageStack subStack = WindowManager.getCurrentImage().createEmptyStack();
 	        				 for (int i = 0; i < areaNodes; i++) {
 	        					 WindowManager.getCurrentImage().setSlice(pointsInLasso.get(i));
-	        					 subStack.addSlice( WindowManager.getCurrentImage().getProcessor());
+	        					 subStack.addSlice(String.valueOf(pointsInLasso.get(i)), WindowManager.getCurrentImage().getProcessor());
 	        				 }
 	        				 ImagePlus subStackImp = new ImagePlus("Sub-stack of "+Integer.toString(areaNodes)+" datapoints", subStack);
 	        				 subStackImp.show();
