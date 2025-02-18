@@ -6,6 +6,7 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
+import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -378,37 +379,34 @@ public class Pca_ implements PlugIn {
 	    		}
 	    		if (eigen_out) {
 	    			//Create a stack here
-	    			//ImageStack eigenStack = new ImageStack(width, height, eigenOutArray.length);
     				ImagePlus outputPlus = NewImage.createImage("Eigenvector(s): ["+eigenOutString+"]", width, height, eigenOutArray.length, bitD, NewImage.FILL_BLACK);
     				ImageStack eigenStack = outputPlus.getStack();
+    				outputPlus.setStack(eigenStack);
     				ResultsTable eigenTable = new ResultsTable();
-    				//ImageProcessor outputProc = outputPlus.getProcessor();	
 	    			for (int k = 0; k < eigenOutArray.length; k++) {
+	    				//IJ.log("eigenOutArray = "+String.valueOf(eigenOutArray[k]));
 			    		if (eigenOutArray[k] > 0 && eigenOutArray[k] <= pca_comp) { //do I need to check against pca_comp here?
-			    			double[] eigenX = pca.getBasisVector(eigenOutArray[k]-1);
-			    			//IJ.log("BasisVector is composed of "+Double.toString(pca.getBasisVector(eigen_out-1).length)+" elements.");
+			    			double[] eigenX = pca.getBasisVector((eigenOutArray[k])-1);
+			    			//IJ.log("BasisVector is composed of "+Double.toString(eigenX.length)+" elements.");
 			    			if (processingTable) {
-			    				//ResultsTable eigenTable = new ResultsTable();
 			    				for (int i = 0; i < eigenX.length; i++) {
 			    					eigenTable.setValue(i, k, eigenX[i]);
 			    				}
-			    				//eigenTable.show("Eigenvector "+ String.valueOf(eigenOutArray[k]));
 			    			} else {
-			    				outputPlus.setSlice(k+1);
-			    				ImageProcessor outputProc = outputPlus.getProcessor();	
+			    				eigenStack.setSliceLabel(""+String.valueOf(eigenOutArray[k]), k+1);
+			    				ImageProcessor outputProc = eigenStack.getProcessor(k+1);
 			    				if (eigenX.length != (width*height)) {
 			    					IJ.log("Error: could not reconstruct eigenvector " + String.valueOf(eigenOutArray[k]) + " as an image, as its length does not equal the orginal image width*height.");
 			    				} else {
-			    					//pcaMean = pca.mean; //better to access via a 'get' function (which I can add to the PrincipalComponent class) rather than making the variable public
 			    					double maxNumber = 0;
 			    					double minNumber = 0;
 			    					for (int i = 0; i < height; i++) {
 				    					for (int j = 0; j < width; j++) {
 				    						if (eigenX[j+(i*width)] > maxNumber) {
-				    							maxNumber = eigenX[j+(i*width)];	//may need to evaluate the square of eigenX, to account for 'highest' negative numbers
+				    							maxNumber = eigenX[j+(i*width)];
 				    						}
 				    						if (eigenX[j+(i*width)] < minNumber) {
-				    							minNumber = eigenX[j+(i*width)];	//may need to evaluate the square of eigenX, to account for 'highest' negative numbers
+				    							minNumber = eigenX[j+(i*width)];
 				    						}
 				    					}
 			    					}
@@ -416,41 +414,40 @@ public class Pca_ implements PlugIn {
 			    					boolean minUnderZero = false;
 			    					boolean minOverZero = false;
 			    					double scaleFactor = 1;
+			    					//IJ.log("minNumber = "+String.valueOf(minNumber));
 			    					if (minNumber < 0) {
 			    						minUnderZero = true;
+			    						//IJ.log("minUnderZero");
 			    						minNumber = Math.sqrt(minNumber*minNumber);
 			    						maxNumber = maxNumber+minNumber;
 			    						scaleFactor = (Math.pow(2,bitD)-1)/(maxNumber); //bitD will only be available for image processing, perhaps I should set the default value to 1. Table processing is handled differently.
-			    					} else if (minNumber > 0) {
+			    					} else if (minNumber >= 0) {
 			    						minOverZero = true;
+			    						//IJ.log("minOverZero");
 			    						maxNumber = maxNumber-minNumber;
 			    						scaleFactor = (Math.pow(2,bitD)-1)/(maxNumber);
 			    					}
 				    				for (int i = 0; i < height; i++) {
 				    					for (int j = 0; j < width; j++) {
-				    						//Shift and scale all eigevector values to span the image bit depth range (e.g. 0-255 for 8-bit)
+				    						//Shift and scale all eigenvector values to span the image bit depth range (e.g. 0-255 for 8-bit)
 				    						if (minUnderZero) {
 				    							eigenX[j+(i*width)] = eigenX[j+(i*width)]+minNumber;
 				    						} else if(minOverZero) {
 				    							eigenX[j+(i*width)] = eigenX[j+(i*width)]-minNumber;
 				    						}
-				    						outputProc.set(j, i, (int) Math.ceil(scaleFactor*eigenX[j+(i*width)]));
+				    						outputProc.set(j, i, (int) Math.floor(scaleFactor*eigenX[j+(i*width)]));
 				    					}
 				    				}
-				    				//outputPlus.show();
 			    				}
-			    				
 			    			}
 		
 			    		} else {
 			    			IJ.log("Could not output the specified eigenvector ["+String.valueOf(eigenOutArray[k])+"] as it is less than 1 or greater than the number of computed principal components.");
 			    		}
-			    		eigenStack.setSliceLabel(""+String.valueOf(eigenOutArray[k]), k+1);
 	    			}
 	    			if (processingTable) {
 	    				eigenTable.show("Eigenvector(s): ["+eigenOutString+"]");
 	    			} else {
-		    			outputPlus.setStack(eigenStack);
 		    			outputPlus.show();
 	    			}
 	    		}
@@ -480,16 +477,35 @@ public class Pca_ implements PlugIn {
 	    		}
 	    		
 	    		//print PC1 explains X amount of variance
-	    		//Plot singular values sotred in W, to show how fast singular values decay.
-	    		//IJ.log("W = "+Arrays.toString(pca.getW(0)));
+	    		//Plot singular values sorted in W, to show how fast singular values decay.
+	    		DecimalFormat numFormat = new DecimalFormat("#.00");
+	    		IJ.log("PC "+Integer.toString(pcompX)+" explains "+String.valueOf(numFormat.format(getDescribedVariance(pcompX-1)*100))+"% of the total variance.");
+	    		IJ.log("PC "+Integer.toString(pcompY)+" explains "+String.valueOf(numFormat.format(getDescribedVariance(pcompY-1)*100))+"% of the total variance.");
 	    		
-	    		/*
-	    		if (!suppressPlot) {
-		            plotTitle = new String("PCA output");
-		            xTitle = "PC "+ Integer.toString(pcompX);
-		            yTitle = "PC " + Integer.toString(pcompY);
-		        	Plot scatter = new Plot(plotTitle, xTitle, yTitle);
+	    		double totalVarianceDescribed = 0;
+	    		for (int i = 0; i < 100; i++ ) {
+	    			totalVarianceDescribed += getDescribedVariance(i);
+	    			if (totalVarianceDescribed < 1 && (i+1)%5 == 0) {
+	    				IJ.log("The first "+(i+1)+" PCs explain "+String.valueOf(numFormat.format(totalVarianceDescribed*100))+"% of the total variance.");
+	    			} else if (totalVarianceDescribed >= 1){
+	    				break;
+	    			}
 	    		}
+	    		
+	    		/* Below are Iris data principle components, for example purpose. Squaring all values shows the contribution of each variable to the corresponding PC. 
+	    		PC1	0.52	0.26	0.58	0.57	
+	    		PC2	0.37	0.93	0.02	0.07
+	    		PC3	0.72	0.24	0.14	0.63
+	    		PC4	0.26	0.12	0.80	0.52
+	    		*
+	    			dimension 1	dimension 2	dimension 3	dimension 4		Row sum values
+				PC1	0.272872109	0.069355814	0.337856224	0.31991586		1.000000007		For instance, Variable/dimension-3 contributes 33.8% of the variance to PC1.
+				PC2	0.138620961	0.856654816	0.00044499	0.004279223		0.99999999		Summing the multiplication of this by the corresponding eigenvalue will allow one to see the amount of variance explained across the whole dataset by that variable.
+				PC3	0.51986524	0.058579915	0.019850629	0.401704215		0.999999999		Ordered Eigenvalues = 0.72770452, 0.23030523, 0.03683832, 0.00515193
+				PC4	0.068641689	0.015409451	0.641848164	0.274100697		1.000000001		Therefore for Variable 3 describes (0.72770452*0.337856224 + 0.23030523*0.00044499 + 0.03683832*0.019850629 + 0.00515193*0.641848164) 25% of the total variance. In fact, all variables/dimensions contribute equally. 
+				*
+				*
+					1.00		1.00		1.00		1.00 <-- Column Sum values
 	    		*/
 	        	
 	        	if (!suppressFx) {
@@ -754,6 +770,7 @@ public class Pca_ implements PlugIn {
         if (eigenOutString.startsWith(",")) {
         	eigenOutString = eigenOutString.substring(1);
         }
+        //IJ.log(eigenOutString);
         eigenOutStringArray = eigenOutString.split(",");
         String rangeString = "";
         if (eigenOutStringArray.length > 0 && eigenOutStringArray[0] != "") {
@@ -772,7 +789,7 @@ public class Pca_ implements PlugIn {
 	        				if (j == lowNum && i == 0) {
 	        					rangeString = rangeString+String.valueOf(j);
 	        				} else {
-	        				rangeString = rangeString+","+String.valueOf(j);
+	        					rangeString = rangeString+","+String.valueOf(j);
 	        				}
 	        			}
 	        		}
@@ -795,7 +812,7 @@ public class Pca_ implements PlugIn {
 	        if (rangeString.endsWith(",")) {
 	        	rangeString = rangeString.substring(0, rangeString.length()-1);
 	        }
-	        //IJ.log("eigen_out range = "+rangeString);
+	        IJ.log("eigen_out range = "+rangeString);
 	        eigenOutString = rangeString;
 	        eigenOutStringArray = rangeString.split(",");
 	        eigenOutArray = new int[eigenOutStringArray.length];
@@ -1338,6 +1355,32 @@ public class Pca_ implements PlugIn {
             System.out.println( "Items in model: " + Arrays.asList( selection.toArray()));
         }
 
+    }
+    
+    /**
+     * Returns the amount of input sample space variance defined by the specified principal component.
+     *
+     * @param which Which principal component's variance contribution is to be returned.
+     * @return Variance contribution.
+     */
+    private double getDescribedVariance(int which) {
+    	double variance = 0;
+    	
+    	double eigenValueSum = 0;
+    	double eigenValue = 0;
+    	for (int i = 0; i < pca.getW(0).length; i++) {
+    		double[] eigenvalue = pca.getW(i);
+    		eigenValueSum += Math.pow(eigenvalue[0], 2);
+    		if (i == which) {
+    			eigenValue = Math.pow(eigenvalue[0], 2);
+    		}
+    	}
+    	//if (which == 0) {
+    		//IJ.log("Summed eigenvalues = "+String.valueOf(eigenValueSum));
+    	//}
+    	variance = eigenValue/eigenValueSum;
+    	
+    	return variance;
     }
     
 }
