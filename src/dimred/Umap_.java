@@ -74,7 +74,7 @@ import javax.swing.SwingUtilities;
 
 import plot.plot.SaveFxPlot;
 
-/**version 1.0.5*/
+/**version 1.0.6*/
 
 /**
  * UMAP java implementation using a library from <a href="https://github.com/tag-bio/umap-java/">https://github.com/tag-bio/umap-java</a>. 
@@ -83,13 +83,13 @@ import plot.plot.SaveFxPlot;
 public class Umap_ implements PlugIn {
 	//Top level initialisation
 	int choice; //JOption 'process the image stack?' choice outcome
-	private boolean processingTable = false;
+	public static boolean processingTable = false;
 	public static ImagePlus stack;
 	double[][] imageMatrix;
 	String[] Filelist;
 	public static String[] labelsArray;
 	public static String[] uniqueArray;
-	private boolean processingStack = false;
+	public static boolean processingStack = false;
 	public static double[] Xarray;
     public static double[] Yarray;
     static String groupLabel;
@@ -122,7 +122,7 @@ public class Umap_ implements PlugIn {
 	
     // Options to use during the run. Defaults for some but otherwise populated when parseOptions() is called.
     private String inputFolderPath;
-    private String inputIndexPath; //show the plugin where sample labels are located.. used to colour the final output.
+    public static String inputIndexPath; //show the plugin where sample labels are located.. used to colour the final output.
     private String nNeighbours;
     	private static int neighbours = 15;
     private String nThreads;

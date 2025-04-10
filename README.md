@@ -1,5 +1,5 @@
-# Dimensionality Reduction (v1.0.5)
-*version release date:01/02/25*</br>
+# Dimensionality Reduction (v1.0.6)
+*version release date:10/04/25*</br>
 
 This plugin captures data from an open image stack, folder of images, or an open results table and performs one of three dimensionality reduction techniques (PCA, t-SNE, or UMAP) to project the high-dimensional data into a lower dimensional (2D) space that is then plotted onto an ImageJ scatter-plot. Under-the-hood, the plugin uses two really-awesome libraries (t-SNE: Leif Jonsson's [pure Java implementation of Van Der Maaten and Hinton's t-sne clustering algorithm](https://github.com/lejon/T-SNE-Java); and UMAP: Jesse Paquette's (of [tag.bio](https://tag.bio/)) [Java implementation of UMAP](https://github.com/tag-bio/umap-java), based on the reference [Python implementation](https://github.com/lmcinnes/umap)). Both are distributed under open-source licences, so even if this plugin doesn't suit you, perhaps their libraries can find a place in your respective projects!<br/>
 
@@ -13,7 +13,7 @@ An open results table to process can be named anything (it does not need to be t
 ---
 ## Using the 'Dimensionality Reduction' plugin on an image stack or folder of images
 
-**NEW: [Youtube tutorial](https://www.youtube.com/watch?v=p90ZYCsKdtw)**
+**[Youtube tutorial](https://www.youtube.com/watch?v=p90ZYCsKdtw)**
 
 The plugin can be called from a GUI dropdown 'Plugins>Dimensionality Reduction>...'</br>
 <img src="src/main/resources/pics/DimRed_GUI_access-dropdown.png" width="350" />

@@ -1,9 +1,10 @@
 package plot.plot;
 import dimred.Umap_;
 import dimred.Tsne_;
-import dimred.Pca_;
 import ij.IJ;
 import ij.plugin.PlugIn;
+import javafx.scene.chart.ScatterChart;
+import javafx.scene.chart.XYChart.Data;
 
 import java.awt.Color;
 import java.io.File;
@@ -17,12 +18,12 @@ import javax.swing.filechooser.FileNameExtensionFilter;
 
 public class SaveFxPlot implements PlugIn {
 	//Top level initialisation
-	int choice; //JOption 'process the image stack?' choice outcome
-	String[] labelsArray;					//required
-	private String[] uniqueArray;			//required
-	static double[] Xarray;					//required
-    static double[] Yarray;					//required
-	private static Color[] groupColours;	//required
+	int choice;											//JOption 'process the image stack?' choice outcome
+	String[] labelsArray;					//required	//The full array of data-point group labels, including duplicates
+	private String[] uniqueArray;			//required	//The array of unique labels from the labelsArray, or the group labels.
+	static double[] Xarray;					//required	//All x values in the plot, not sorted
+    static double[] Yarray;					//required	//All y values in the plot, not sorted
+	private static Color[] groupColours;	//required	//An array of colours ascribed to each data-point group
 	private static int[][] lookupArray;		//required
 	private static String xTitle;			//required
 	private static String yTitle;			//required
@@ -34,6 +35,37 @@ public class SaveFxPlot implements PlugIn {
 		int plotExists = 1;
 		ArrayList<Object> fxObjects = new ArrayList<Object>(10);
 		
+		stackSize = Fx_Scatter.stackSize;
+		Object[] obj = (Object[]) Fx_Scatter.groupColoursList.toArray();
+		groupColours = new Color[obj.length];
+		for(int i=0; i<obj.length;i++) {
+		    groupColours[i] = (Color)obj[i];
+		}
+		lookupArray = Fx_Scatter.lookupArray;
+		xTitle = Fx_Scatter.xTitle;
+		yTitle = Fx_Scatter.yTitle;
+		plotTitle = Fx_Scatter.plotTitle;
+		labelsArray = new String[stackSize];
+		Xarray = new double[stackSize];
+		Yarray = new double[stackSize];
+		//uniqueArray = (String[]) Fx_Scatter.uniqueArrayList.toArray();
+		Object[] obj2 = (Object[]) Fx_Scatter.uniqueArrayList.toArray();
+		uniqueArray = new String[obj2.length];
+		for(int i=0; i<obj2.length;i++) {
+			uniqueArray[i] = (String)obj2[i];
+		}
+		
+		for (ScatterChart.Series<Number, Number> series : Fx_Scatter.sc_Fx.getData()) {
+        	for (Data<Number, Number> data : series.getData()) {
+        		int lookupVal = lookupArray[Fx_Scatter.sc_Fx.getData().indexOf(series)][series.getData().indexOf(data)]-1; //-1 as the lookupArray was populated with stack numbers which is 1-based
+        		//IJ.log("lookupVal = "+Integer.toString(lookupVal));
+        		labelsArray[lookupVal] = series.getName();
+    			Xarray[lookupVal] = (double) data.getXValue();
+    			Yarray[lookupVal] = (double) data.getYValue();
+        	}
+		}
+		
+		/*
 		if (Pca_.Pcomp1 != null) {
 			//fxPanelRef = Pca_.fxPanelRef;
 			labelsArray = Pca_.labelsArray;
@@ -47,7 +79,10 @@ public class SaveFxPlot implements PlugIn {
 			plotTitle = Pca_.plotTitle;
 			//stackSize = Pca_.stack.getStackSize();
 			stackSize = Pca_.Pcomp1.length;
-		} else if (Tsne_.Xarray != null) {
+		} else
+		*/
+			
+		if (Tsne_.Xarray != null) {
 			//fxPanelRef = Tsne_.fxPanelRef;
 			labelsArray = Tsne_.labelsArray;
 			uniqueArray = Tsne_.uniqueArray;
@@ -74,7 +109,7 @@ public class SaveFxPlot implements PlugIn {
 			//stackSize = Umap_.stack.getStackSize();
 			stackSize = Umap_.Xarray.length;
 		} else {
-			plotExists = 0;
+			//plotExists = 0;
 		}
 		fxObjects.add(labelsArray);
 		fxObjects.add(uniqueArray);

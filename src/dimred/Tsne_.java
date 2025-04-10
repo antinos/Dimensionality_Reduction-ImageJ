@@ -73,7 +73,7 @@ import javax.swing.JFrame;
 import javax.swing.JOptionPane;
 import javax.swing.SwingUtilities;
 
-/**version 1.0.5*/
+/**version 1.0.6*/
 
 /*
  * tSNE java implementation from https://github.com/lejon/T-SNE-Java
@@ -82,14 +82,14 @@ import javax.swing.SwingUtilities;
 public class Tsne_ implements PlugIn {
 	//Top level initialisation
 	int choice; //JOption 'process the image stack?' choice outcome
-	private boolean processingTable = false;
+	public static boolean processingTable = false;
 	public static ImagePlus stack;
 	double[][] imageMatrix;
 	String[] Filelist;
 	public static String[] labelsArray;
 	public static String[] uniqueArray;
 	static String groupLabel;
-	private boolean processingStack = false;
+	public static boolean processingStack = false;
     public static double[] Xarray;
     public static double[] Yarray;
 	static Color ranCol;
@@ -117,7 +117,7 @@ public class Tsne_ implements PlugIn {
 	
     // Options to use during the run. Defaults for some but otherwise populated when parseOptions() is called.
     private String inputFolderPath;
-    private String inputIndexPath; //show the plugin where sample labels are located.. used to colour the final output.
+    public static String inputIndexPath; //show the plugin where sample labels are located.. used to colour the final output.
     private static int initial_dims = 30; //pre-processing PCA variable.. reducing dimensions to specified value.
     private static double perplexity = 50.0;
     private int max_iterations = 1000;

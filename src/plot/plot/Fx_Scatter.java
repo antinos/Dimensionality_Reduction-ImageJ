@@ -1,19 +1,29 @@
 package plot.plot;
 
 import java.awt.Color;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.FutureTask;
 
 import javax.swing.JFrame;
+import javax.swing.SwingUtilities;
 
-import dimred.Umap_;
-import dimred.Tsne_;
 import dimred.Pca_;
+import dimred.Tsne_;
+import dimred.Umap_;
 import ij.IJ;
 import ij.ImagePlus;
+import ij.ImageStack;
+import ij.WindowManager;
+import ij.measure.ResultsTable;
+import ij.text.TextWindow;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.embed.swing.JFXPanel;
+import javafx.event.ActionEvent;
 import javafx.event.EventHandler;
 import javafx.geometry.Insets;
 import javafx.scene.Cursor;
@@ -24,33 +34,127 @@ import javafx.scene.chart.NumberAxis;
 import javafx.scene.chart.ScatterChart;
 import javafx.scene.chart.XYChart;
 import javafx.scene.chart.XYChart.Data;
+import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Label;
+import javafx.scene.control.MenuItem;
+import javafx.scene.image.WritableImage;
+import javafx.scene.input.Clipboard;
+import javafx.scene.input.ClipboardContent;
+import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.input.ScrollEvent;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.Pane;
 import javafx.scene.layout.Priority;
+import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.shape.Circle;
+import javafx.scene.shape.ClosePath;
+import javafx.scene.shape.LineTo;
+import javafx.scene.shape.MoveTo;
+import javafx.scene.shape.Path;
+import javafx.scene.shape.StrokeLineCap;
 
-/**
- * 
- * @apiNote Work in progress. Starting to make a generic plotting class that each Dimensionality Reduction tool can call on. The ReadFxPlot class is actually very close to this.
+/** Generic FxPlot generator class.
  *
  */
-//public class Fx_Scatter extends Application implements PlugIn {
 public class Fx_Scatter {
 	//Top level initialisation
-	static ImagePlus stack = Umap_.stack; //|| Tsne_.stack || Pca_.stack;
-	private static int neighbours;
-	private static String metric = Umap_.metric;
-	static int[][] lookupArray = Umap_.lookupArray;
+	public static ArrayList<String> uniqueArrayList;	//An arraylist of group/series labels
+    public static ArrayList<Color> groupColoursList;	//An arraylist of colours ascribed to each data-point group/series
+	public static int[][] lookupArray;					//a 2D array defining the original stack or table position of datapoints organised as [series index][data index]
+	public static String xTitle;						//x-axis title
+	public static String yTitle;						//y-axis title
+	public static String plotTitle;						//plot title
+	public static int stackSize;						//The size of the linked stack of images or data-table
+	
+	static ImagePlus stack;
+	//private static int neighbours; //used by Umap setTitle
+	//private static String metric = Umap_.metric;
+	//private static String metric; //used by Umap setTitle
 	//Fx top level initialisation
-	static JFXPanel fxPanelRef;
-	static Scene scene;
-	static NumberAxis xAxis_Fx;
-	static NumberAxis yAxis_Fx;
-	private static ScatterChart<Number,Number> sc_Fx;
+	private static Scene scene;
+	private static NumberAxis xAxis_Fx;
+	private static NumberAxis yAxis_Fx;
+	public static ScatterChart<Number,Number> sc_Fx;
 	private static Label cursorCoords = null;
+	private static boolean multiEnabled = false;
+	private static Path multiPath = new Path();
+	private static Pane pathPane = new Pane();
+	private static double xPathOffset = 0;
+	private static double yPathOffset = 0;
+    private static double mouseStartX;
+    private static double mouseStartY;
+    private static int areaNodes;	//count of points within a lasso selection
+    private static ArrayList<Integer> pointsInLasso = new ArrayList<Integer>();
+    
+	/** Constructs a new Fx_Plot with the default options.
+	 * Use addSeries(xvalues,yvalues, seriesName, seriesColour) to add data.
+	 * @param title the window title
+	 * @param xLabel	the x-axis label
+	 * @param yLabel	the y-axis label
+	 * @see #addSeries(String,double[],double[])
+	 */
+	public Fx_Scatter(String title, String xLabel, String yLabel) {
+		plotTitle = title;
+		xTitle = xLabel;
+		yTitle = yLabel;
+		stackSize = 0;
+		uniqueArrayList = new ArrayList<String>();
+		groupColoursList = new ArrayList<Color>();
+		show();
+		
+		//If I want to create a truly stand-alone Fx-Scatter class, then I should find a better way to handle stack and table interactions that don't reply on accessing the Dimred classes.
+		//Maybe the stack reference can be passed over during construction. Or forget about checking processingStack status and determine stackSize via data 'addSeries' import.
+		//The Lookup array is also currently being pulled from the Dimred classes, so consider using the uniqueArrayList being procedurally populated here.
+		if (Pca_.processingStack || Tsne_.processingStack || Umap_.processingStack) {
+			//Yucky references to Dimred stacks below
+			if (Pca_.processingStack && Pca_.stack != null && Pca_.stack.isStack()) {
+				stack = Pca_.stack;
+				stackSize = stack.getStackSize();
+			}
+			else if (Tsne_.processingStack && Tsne_.stack != null && Tsne_.stack.isStack()) {
+				stack = Tsne_.stack;
+				stackSize = stack.getStackSize();
+			}
+			else if (Umap_.processingStack && Umap_.stack != null && Umap_.stack.isStack()) {
+				stack = Umap_.stack;
+				stackSize = stack.getStackSize();
+			}
+			/*
+			if (WindowManager.getCurrentImage() != null && (WindowManager.getCurrentImage()).isStack()) {
+				stack = WindowManager.getCurrentImage(); //I think the stack is not being identified as the active image window when mean_out and/or eigen_out images are generated.
+				stackSize = stack.getStackSize();
+				IJ.log("Stack size = "+Integer.toString(stackSize));
+			}
+			*/
+		} else if (Pca_.processingTable || Tsne_.processingTable || Umap_.processingTable) {
+			if (WindowManager.getActiveTable() != null && WindowManager.getActiveTable() instanceof TextWindow) {
+				ResultsTable rt = ResultsTable.getActiveTable();
+				stackSize = rt.size();
+			}
+		}
+	}
+	
+	/** Initialise and display the Fx plot.
+	 * Called after Fx_Scatter construction and addSeries.
+	 * @see #Fx_Scatter()
+	 * @see #addSeries()
+	 */
+	public void show() {
+    	Runnable runnable = () -> {
+            initAndShowGUI();
+        };
+        FutureTask<Void> task = new FutureTask<>(runnable, null);
+        SwingUtilities.invokeLater(task);
+        try {
+			task.get();
+		} catch (InterruptedException e) {
+			e.printStackTrace();
+		} catch (ExecutionException e) {
+			e.printStackTrace();
+		}
+	}
 	
     private static void initAndShowGUI() {
         // This method is invoked on Swing thread
@@ -61,13 +165,13 @@ public class Fx_Scatter {
         frame.setVisible(true);
         //frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);	//ends the java session (including ImageJ) when the plot is closed.
 
-    	Runnable runnable3 = () -> {
+    	Runnable runnable = () -> {
     		initFX(fxPanel);
             };
-            FutureTask<Void> task3 = new FutureTask<>(runnable3, null);
-            Platform.runLater(task3);
+            FutureTask<Void> task = new FutureTask<>(runnable, null);
+            Platform.runLater(task);
             try {
-    			task3.get();
+    			task.get();
     		} catch (InterruptedException e) {
     			e.printStackTrace();
     		} catch (ExecutionException e) {
@@ -75,26 +179,44 @@ public class Fx_Scatter {
     		}
     }
     
-	public static ScatterChart<Number,Number> addSeries(ScatterChart<Number,Number> sc, double[] xDataArray, double[] yDataArray, String seriesName, Color groupColour) {
-	    		if (sc.getData() == null) {
-	    			sc.setData(FXCollections.<XYChart.Series<Number, Number>>observableArrayList());
+	/** Adds a set of points to the plot.
+	 * @param xDataArray	the x coordinates.
+	 * @param yDataArray	the y coordinates.
+	 * @param shape			(NOT YET IMPLEMENTED) CIRCLE, X, BOX, TRIANGLE, CROSS, DIAMOND, DOT.
+	 * @param seriesName	Label for this set of points, used for a legend and for listing the plots.
+	 * @param groupColour	Colour of points in this series.
+	 */
+	public void addSeries(double[] xDataArray, double[] yDataArray, String seriesName, Color groupColour) {
+	    		if (sc_Fx.getData() == null) {
+	    			sc_Fx.setData(FXCollections.<XYChart.Series<Number, Number>>observableArrayList());
 	    			IJ.log("scatter is null");
     			}
 	    		ScatterChart.Series<Number, Number> series = new ScatterChart.Series<Number, Number>();
 	    		series.setName(seriesName);
 	    		for (int i=0; i<xDataArray.length; i++) {
 	    			series.getData().add(new ScatterChart.Data<Number, Number>(xDataArray[i], yDataArray[i]));
+	    			//stackSize++;
     			}
-	    		
-	    		//String hex = "#"+Integer.toHexString(ranCol.getRGB()).substring(2);
+	    		uniqueArrayList.add(seriesName); //ScatterChart.Series has a getName function, so this might not be needed for the plot save and load classes
+	    		groupColoursList.add(groupColour); //It is weirdly more difficult to get the colour property of nodes, so compiling this list is more useful
 	    		String hex = "#"+Integer.toHexString(groupColour.getRGB()).substring(2);
 	            for (XYChart.Data < Number, Number > data: series.getData()) {
 	            	data.setNode(new Circle(2));
 	            	Node node = data.getNode();
 	            	node.setStyle("-fx-stroke: "+hex+"; -fx-fill:"+hex);
+	            	//node.setCache(true); //doesn't really help
+	            	//node.setCacheHint(CacheHint.SPEED); //doesn't really help
 	            	//node.setScaleX(0.5);
 	            	//node.setScaleY(0.5);
 	            }
+	            
+	    		if (Pca_.lookupArray != null) {
+	    			lookupArray = Pca_.lookupArray;
+	    		} else if (Tsne_.lookupArray != null) {
+	    			lookupArray = Tsne_.lookupArray;
+	    		} else if (Umap_.lookupArray != null) {
+	    			lookupArray = Umap_.lookupArray;
+	    		}
 	            
 	            //make the nodes mouse selectable. Code from https://stackoverflow.com/questions/44956955/javafx-use-chart-legend-to-toggle-show-hide-series-possible
 	            for (Data<Number, Number> data : series.getData()) {
@@ -102,8 +224,9 @@ public class Fx_Scatter {
 	                node.setCursor(Cursor.HAND);
 	                node.setOnMouseClicked(e -> {
 	                	// when a point is selected, highlight the corresponding origin image in the input image stack, if it exists. Note: Perhaps display the image in a new window if a stack is not present.
-	                	if (stack != null) {
-	                		stack.setSlice(lookupArray[sc.getData().indexOf(series)][series.getData().indexOf(data)]);	//note: add a null condition check for when a stack wasn't the input
+	                	if (WindowManager.getCurrentImage() != null && (WindowManager.getCurrentImage()).isStack() && WindowManager.getCurrentImage().getStackSize() == stackSize) {
+	                		stack = WindowManager.getCurrentImage();
+	                		stack.setSlice(lookupArray[sc_Fx.getData().indexOf(series)][series.getData().indexOf(data)]);	//note: add a null condition check for when a stack wasn't the input
 	                	}
 	                });
 	                /*// Hilarious working code for moving the points around on the chart (from the above stackoverflow post)
@@ -120,22 +243,32 @@ public class Fx_Scatter {
 	                
 	            }
 	            
-	    		sc.getData().add(series);
-	    		//((Node) sc.lookupAll(".chart-legend-item-symbol").toArray()[sc.lookupAll(".chart-legend-item-symbol").toArray().length]).setStyle("-fx-stroke: "+hex+"; -fx-fill:"+hex);
-	    		return sc;
+	        	Platform.runLater(new Runnable() {
+	        		@Override
+	    	    	public void run() {
+	        			sc_Fx.getData().add(series);
+	        			dynamicLegend();
+	        		}
+	    		});
     } 
     
-    private static void setAxis(String xString, String yString) {
+	/** Change the x and y axis labels.
+	 *  @apiNote more of a placeholder right now as its not used. Consider changing to a public class/method.
+	 */
+	private static void setAxis(String xString, String yString) {
     			sc_Fx.getXAxis().setLabel(xString);
     			sc_Fx.getYAxis().setLabel(yString);
 	}
     
+	/** Change the plot title.
+	 *  @apiNote more of a placeholder right now as its not used. Consider changing to a public class/method.
+	 */
     private static void setTitle(String title) {
     			sc_Fx.setTitle(title);
 	}
     
     private static void initFX(JFXPanel fxPanel) {
-    	fxPanelRef = fxPanel;
+    	//fxPanelRef = fxPanel; 	
     	xAxis_Fx = new NumberAxis();	//can give the constructor axis ranges instead, if preferred
     	xAxis_Fx.setForceZeroInRange(false);
     	yAxis_Fx = new NumberAxis();
@@ -144,22 +277,31 @@ public class Fx_Scatter {
         sc_Fx.setAnimated(false);
         xAxis_Fx.setAnimated(false);
         yAxis_Fx.setAnimated(false);
-        xAxis_Fx.setLabel("UMAP 1");
-        yAxis_Fx.setLabel("UMAP 2");
-        sc_Fx.setTitle("UMAP output (nNeighbours = "+String.valueOf(neighbours)+"; metric = "+metric+")");
+        xAxis_Fx.setLabel(xTitle);
+        yAxis_Fx.setLabel(yTitle);
+        sc_Fx.setTitle(plotTitle);
         cursorCoords = new Label();
         
-        ///scene  = new Scene(sc_Fx, 900, 580);
         sc_Fx.setPrefSize(900, 500);
         sc_Fx.setStyle("-fx-border-color: black; -fx-border-insets: 0 4 0 4;"); //border insets top, right, bottom, left
         //scene.getStylesheets().add("stylesheet.css");		//this is the recommended way to set javafx chart/gui visual parameters... but some nodes are not updated properly in my testing
+    	Node horizontalGridLines = sc_Fx.lookup(".chart-horizontal-grid-lines"); //see https://docs.oracle.com/javase/8/javafx/api/javafx/scene/doc-files/cssref.html
+			horizontalGridLines.setMouseTransparent(true);
+		Node verticalGridLines = sc_Fx.lookup(".chart-vertical-grid-lines");
+    		verticalGridLines.setMouseTransparent(true);
         
-        Scene scene  = new Scene(new Group());
+        scene  = new Scene(new Group());
         final VBox vbox = new VBox();
         final HBox hbox = new HBox();
+        final StackPane spane = new StackPane();
+        pathPane = new Pane();
+        pathPane.prefWidthProperty().bind(vbox.widthProperty());
+        pathPane.prefHeightProperty().bind(vbox.heightProperty());
+        pathPane.setPickOnBounds(false);
         hbox.setSpacing(10);
         hbox.getChildren().add(cursorCoords);
-        vbox.getChildren().addAll(sc_Fx, hbox);  
+        spane.getChildren().addAll(sc_Fx);
+        vbox.getChildren().addAll(spane, hbox);  
         hbox.setPadding(new Insets(5, 5, 5, 20));
         vbox.setFillWidth(true);
         hbox.setFillHeight(true);
@@ -168,14 +310,17 @@ public class Fx_Scatter {
         cursorCoords = coordinateListener();
         
         zoomAndPan();
-        
+        multiSelectToolandContextMenu();
+             
         sc_Fx.prefWidthProperty().bind(vbox.widthProperty());
         sc_Fx.prefHeightProperty().bind(vbox.heightProperty());
         vbox.prefWidthProperty().bind(scene.widthProperty());
         vbox.prefHeightProperty().bind(scene.heightProperty());
         ((Group)scene.getRoot()).getChildren().add(vbox);
+        spane.getChildren().add(pathPane);
+        pathPane.getChildren().add(multiPath);     
         
-        fxPanelRef.setScene(scene);
+        fxPanel.setScene(scene);
     }
     
     private static Label coordinateListener() {
@@ -189,7 +334,6 @@ public class Fx_Scatter {
         chartBackground.setOnMouseMoved(new EventHandler<MouseEvent>() {
         	@Override public void handle(MouseEvent mouseEvent) {
         		cursorCoords.setText(
-        		//IJ.log(
                 String.format(
                 		"(X=%.2f, Y=%.2f)",
                 		xAxis_Fx.getValueForDisplay(mouseEvent.getX()),
@@ -258,4 +402,342 @@ public class Fx_Scatter {
     	
     }
     
+    private static void dynamicLegend() {
+    	Set<Node> items = sc_Fx.lookupAll("Label.chart-legend-item");
+        int it=0;
+        for (Node item : items) {
+        	Label label = (Label) item;
+            XYChart.Data<Number, Number> newLegendPoint = new XYChart.Data<Number, Number>();	//create a new datapoint to put into the legend and give it the same style and colours as the corresponding chart data series
+            newLegendPoint.setNode(new Circle(2)); //if I allow different shapes, this will need to be populated procedurally
+            Node node = newLegendPoint.getNode();
+            String hex = "#"+Integer.toHexString(groupColoursList.get(it).getRGB()).substring(2);
+            node.setStyle("-fx-stroke: "+hex+"; -fx-fill:"+hex);
+            label.setGraphic(node);		            
+            label.getGraphic().setCursor(Cursor.HAND); // Hint to user that legend symbol is clickable
+            label.getGraphic().setOnMouseClicked(me -> {
+             	if (!label.isUnderline()) {
+             		label.setUnderline(true);
+             	} else {
+             		label.setUnderline(false);
+             	}
+             	for (XYChart.Series<Number, Number> s : sc_Fx.getData()) {
+             		if (s.getName().equals(label.getText())) {
+                		for (XYChart.Data<Number, Number> d : s.getData()) {
+                			if (d.getNode().isVisible()) {
+                				d.getNode().setVisible(false);
+                			} else {
+                				d.getNode().setVisible(true);
+                			}
+                		}
+             		}
+             	}
+            	//if a lasso area has been previously drawn, compute new 'areaNodes' and 'pointsInLasso'
+            	if (!multiPath.getElements().isEmpty()) {
+            		areaNodes = 0;
+    	        	pointsInLasso.clear();
+    	            //Iterate over all sc_Fx nodes, series-by-series.
+    	            for (ScatterChart.Series<Number, Number> series : sc_Fx.getData()) {
+		            	for (Data<Number, Number> data : series.getData()) {
+			                //Node node = data.getNode();
+		                	if (multiPath.contains(data.getNode().getBoundsInParent().getMinX()+xPathOffset, data.getNode().getBoundsInParent().getMinY()+yPathOffset) && data.getNode().isVisible()) {
+			                	areaNodes++;
+			                	pointsInLasso.add(lookupArray[sc_Fx.getData().indexOf(series)][series.getData().indexOf(data)]);
+			                }
+		            	}
+    	            }
+            	}
+            	});
+            it++;
+            }
+        }
+    
+    private static void multiSelectToolandContextMenu() {
+    	Node chartBackground = sc_Fx.lookup(".chart-plot-background");
+    	SelectionModel selectionModel = new SelectionModel();  	
+    	multiPath = new Path();
+    	multiPath.setStroke(javafx.scene.paint.Color.BLUE);
+    	multiPath.setStrokeWidth(1);
+    	multiPath.setStrokeLineCap(StrokeLineCap.ROUND);
+    	multiPath.setFill(javafx.scene.paint.Color.LIGHTBLUE.deriveColor(0, 1.2, 1, 0.6));
+    	/*
+    	multiPath.setOnMousePressed(new EventHandler<MouseEvent>() {
+    	    public void handle(MouseEvent event) {
+    	    	if (event.getButton() == MouseButton.SECONDARY) {
+    	    		//IJ.log("Shape successfully selected.");
+    	    		//Opportunity to add some context functions here... like an option to add a group label to the selected points. Or maybe just a way to cancel the area.
+    	    	}
+    	    	event.consume();
+    	    }
+    	});
+    	*/ 	
+        multiEnabled = false;
+        //Could go here.. optional inclusion of array wrapper for mouseStartX and Y if I do not want to initialise them as global variables
+        
+        chartBackground.setOnMousePressed(e -> {
+        	if (e.getClickCount() == 1 && e.getButton() == MouseButton.PRIMARY) {
+	        	if(multiEnabled) {
+	        		return;
+	        	}
+	        	mouseStartX = e.getSceneX();
+	        	mouseStartY = e.getSceneY();
+	        	
+	        	//Chart background to window(scene) coordinate offset... allows us to compare node positions with the multiPath area later
+	        	xPathOffset = e.getSceneX()-e.getX();
+	        	yPathOffset = e.getSceneY()-e.getY();
+	        	//IJ.log("xOffset = "+Double.toString(xPathOffset)+", yOffset = "+Double.toString(yPathOffset));
+	
+	    		multiPath.getElements().clear();
+	    		multiPath.getElements().add(new MoveTo(e.getSceneX(), e.getSceneY()));
+	    		
+	            e.consume();
+	
+	            multiEnabled = true;
+        	}
+        	if (e.getClickCount() == 2 && e.getButton() == MouseButton.PRIMARY) {
+	        	xAxis_Fx.setAutoRanging(true);
+	        	yAxis_Fx.setAutoRanging(true);
+	        	e.consume();
+        	}
+        	if (e.getButton() == MouseButton.SECONDARY) {
+	        	final ContextMenu contextMenu = new ContextMenu();
+	        	MenuItem copy = new MenuItem("Copy to clipboard");
+	        	MenuItem save = new MenuItem("Save interactive plot");
+	        	contextMenu.getItems().addAll(copy, save);
+	        	contextMenu.show(sc_Fx, e.getScreenX(), e.getScreenY());
+	        	copy.setOnAction(new EventHandler<ActionEvent>() {
+	        		 public void handle(ActionEvent event) {
+		    	        	WritableImage image = scene.snapshot(null);
+		    	        	//WritableImage image = chart.snapshot(new SnapshotParameters(), null);
+		    	            ClipboardContent cc = new ClipboardContent();
+		    	            cc.putImage(image);
+		    	            Clipboard.getSystemClipboard().setContent(cc);
+	        		}
+	        	});
+	        	save.setOnAction(new EventHandler<ActionEvent>() {
+	        		public void handle(ActionEvent event) {
+	    	        	SaveFxPlot savePlot = new SaveFxPlot();
+	    	        	savePlot.run(null);
+	        		}
+	        	});
+	        	e.consume();
+	        }
+        });
+        
+        chartBackground.setOnMouseDragged(e -> {
+        	if (e.getButton() == MouseButton.PRIMARY) {
+        		if (!multiEnabled) {
+        			return;
+        		}
+	        	multiPath.getElements().add(new LineTo(e.getSceneX(), e.getSceneY()));
+	        	
+	        	e.consume();
+        	}
+        });
+        
+        chartBackground.setOnMouseReleased(e -> {
+        	if (e.getButton() == MouseButton.PRIMARY) {
+        		if (!multiEnabled) {
+        			return;
+        		}
+	        	areaNodes = 0;
+	        	pointsInLasso.clear();
+	        	multiPath.getElements().add(new LineTo(mouseStartX, mouseStartY)); //see if moving the line to the path origin makes the next closePath call less jumpy.
+	        	multiPath.getElements().add(new ClosePath());
+	        	
+	        	//if the fist multiPath point is the same as the last, then no path was drawn and the path will be deleted
+	        	if (mouseStartX == e.getSceneX() && mouseStartY == e.getSceneY()) {
+	        		multiPath.getElements().clear();
+	        		e.consume();
+	        		multiEnabled = false;
+	        		return;
+	        	}
+	        	
+	            if(!e.isControlDown() || !e.isShiftDown()) {
+	            	selectionModel.clear();
+	            }
+	            
+	            //Iterate over all sc_Fx nodes, series-by-series. Perhaps there is a better way of achieving this.
+	            for (ScatterChart.Series<Number, Number> series : sc_Fx.getData()) {
+	            	for (Data<Number, Number> data : series.getData()) {
+		                Node node = data.getNode();
+
+	                	if (multiPath.contains(node.getBoundsInParent().getMinX()+xPathOffset, node.getBoundsInParent().getMinY()+yPathOffset) && node.isVisible()) {
+		                	areaNodes++;
+		                	pointsInLasso.add(lookupArray[sc_Fx.getData().indexOf(series)][series.getData().indexOf(data)]);
+		                }
+	            	}
+	            }
+	            
+	            if (areaNodes == 1) {
+	            	IJ.log("1 point in the area.");
+	            } else if (areaNodes > 1) {
+	            	IJ.log(areaNodes+" points in the area.");
+	            }
+	            
+	        	e.consume();
+	        	
+	        	multiEnabled = false;
+        	}
+        });
+        
+        //right clicking on the multipath area creates a dropdown menu, allowing an image stack or results table of the selected data to be created
+        multiPath.setOnMousePressed(e2 -> {
+        	if (e2.getClickCount() == 1 && e2.getButton() == MouseButton.SECONDARY) {
+	        	final ContextMenu exportMenu = new ContextMenu();
+	        	MenuItem toStack = new MenuItem("Data to stack");
+	        	MenuItem toTable = new MenuItem("Data to table");
+
+	        	if (WindowManager.getCurrentImage() == null || !(WindowManager.getCurrentImage()).isStack() || WindowManager.getCurrentImage().getStackSize() != stackSize) {
+        			toStack.setDisable(true);
+        			toStack.setText("Data to stack (Open and select a stack to enable)");
+        			toTable.setDisable(true);
+        			toTable.setText("Data to table (Open and select a stack to enable)");
+        			toStack.setStyle("-fx-stroke-color: rgba(100, 100, 100, 1)");	//disabling the menuitem overrides the colour, so this is not implemented
+        			toTable.setStyle("-fx-stroke-color: rgba(100, 100, 100, 1)");	//disabling the menuitem overrides the colour, so this is not implemented
+        		} else if (WindowManager.getCurrentImage() != null && (WindowManager.getCurrentImage()).isStack() && WindowManager.getCurrentImage().getStackSize() == (stackSize)) {
+        			toStack.setDisable(false);
+        			toStack.setText("Data to stack");
+        			toTable.setDisable(false);
+        			toTable.setText("Data to table");
+        			toStack.setStyle("-fx-stroke-color: rgba(0, 0, 0, 1)");
+        			toTable.setStyle("-fx-stroke-color: rgba(0, 0, 0, 1)");
+        		}
+	        	exportMenu.getItems().clear();
+	        	exportMenu.getItems().addAll(toStack, toTable);
+	        	exportMenu.show(sc_Fx, e2.getScreenX(), e2.getScreenY());
+	        	toStack.setOnAction(new EventHandler<ActionEvent>() {
+	        		 public void handle(ActionEvent event) {
+	        			 String titles[] = WindowManager.getImageTitles();
+	        			 if (!Arrays.stream(titles).anyMatch("Sub-stack"::equals) && WindowManager.getCurrentImage() != null && (WindowManager.getCurrentImage()).isStack() && WindowManager.getCurrentImage().getStackSize() == stackSize && areaNodes > 0) {
+	        				 ImageStack subStack = WindowManager.getCurrentImage().createEmptyStack();
+	        				 for (int i = 0; i < areaNodes; i++) {
+	        					 WindowManager.getCurrentImage().setSlice(pointsInLasso.get(i));
+	        					 subStack.addSlice(String.valueOf(pointsInLasso.get(i)), WindowManager.getCurrentImage().getProcessor());
+	        				 }
+	        				 ImagePlus subStackImp = new ImagePlus("Sub-stack of "+Integer.toString(areaNodes)+" datapoints", subStack);
+	        				 subStackImp.show();
+	        				 WindowManager.getCurrentImage().setSlice(0);
+	        			 }
+	        		}
+	        	});
+	        	toTable.setOnAction(new EventHandler<ActionEvent>() {
+	        		public void handle(ActionEvent event) {
+	        			IJ.log("toTable was pressed.");
+	        		}
+	        	});
+	        	e2.consume();
+        	}
+        	
+        	// recount the enclosed points after left clicking on the multiPath selection area 
+        	if (e2.getClickCount() == 1 && e2.getButton() == MouseButton.PRIMARY) {
+        		int areaNodes = 0;
+        		for (ScatterChart.Series<Number, Number> series : sc_Fx.getData()) {
+	            	for (Data<Number, Number> data : series.getData()) {
+		                Node node = data.getNode();
+
+	                	if (multiPath.contains(node.getBoundsInParent().getMinX()+xPathOffset, node.getBoundsInParent().getMinY()+yPathOffset) && node.isVisible()) {
+		                	areaNodes++;
+		                }
+	            	}
+        		}
+            
+	            if (areaNodes == 1) {
+	            	IJ.log("1 point in the area.");
+	            } else if (areaNodes > 1) {
+	            	IJ.log(areaNodes+" points in the area.");
+	            }
+        	}
+        });
+        
+    }
+    
+    private static class SelectionModel {
+
+        Set<Node> selection = new HashSet<>();
+
+        @SuppressWarnings("unused")
+		public void add( Node node) {
+
+            if( !node.getStyleClass().contains("highlight")) {
+                node.getStyleClass().add( "highlight");
+            }
+
+            selection.add( node);
+        }
+
+        public void remove( Node node) {
+            node.getStyleClass().remove( "highlight");
+            selection.remove( node);
+        }
+
+		public void clear() {
+
+            while( !selection.isEmpty()) {
+                remove( selection.iterator().next());
+            }
+
+        }
+
+        @SuppressWarnings("unused")
+		public boolean contains( Node node) {
+            return selection.contains(node);
+        }
+
+        @SuppressWarnings("unused")
+		public int size() {
+            return selection.size();
+        }
+
+        @SuppressWarnings("unused")
+		public void log() {
+            System.out.println( "Items in model: " + Arrays.asList( selection.toArray()));
+        }
+
+    }
+    
+    /*
+    public String[] getLabels( String labelIndexPath) throws IOException {
+    	inputIndexPath = labelIndexPath;
+    	BufferedReader br = null;
+    	List<String> labelList = new ArrayList<String>();
+    	
+    	if (inputIndexPath.endsWith(".csv")) {
+    		try {
+    			String line = "";
+    			br = new BufferedReader(new FileReader(inputIndexPath));
+    			int lineCounter = 0;
+    			while ((line = br.readLine()) != null) {
+    				if (lineCounter == 0) {
+    					lineCounter++;
+    					continue;
+    				} else {
+    					lineCounter++;
+    					labelList.add(line.replaceAll(",", ""));
+    				}
+    				
+    			}
+    			} catch (FileNotFoundException e) {
+    			IJ.handleException(e);
+    			} catch (IOException e) {
+    			IJ.handleException(e);} finally {
+    				if (br != null) {
+    					try {
+    						br.close(); 
+    						} catch (IOException e) {
+    							IJ.handleException(e);
+    						}
+    				}
+    			}
+    	} else {
+    		IJ.log("The user has specified a labels file but it is not a .csv.");
+    	}
+    	String[] labels = new String[labelList.size()];
+    	//IJ.log("labelList size is: "+String.valueOf(labelList.size()));
+    	labels = labelList.toArray(labels);
+    	//IJ.log("getLabels produces this: "+Arrays.toString(labels));
+    	//IJ.log("getLabels result contains "+String.valueOf((labels.length)+" elements"));
+    	inputIndexPath = null;
+    	return labels;
+    }
+    */
 }
