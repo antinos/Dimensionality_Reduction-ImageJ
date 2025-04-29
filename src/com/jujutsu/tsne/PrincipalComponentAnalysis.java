@@ -317,39 +317,24 @@ public class PrincipalComponentAnalysis {
         return u.data;
     }
     
-    /*
-    //Added incase a vector requires manipulation before being used
-    public double[] getEigen( int which ) {
-        if( which < 0 || which >= A.numCols )
-            throw new IllegalArgumentException("Invalid vector");
-        
-        //DMatrixRMaj u = new DMatrixRMaj(1,A.numCols);
-        DMatrixRMaj v = new DMatrixRMaj(1, A.numCols);
-        CommonOps_DDRM.extract(V_t, which, which + 1, 0, A.numCols, v, 0, 0);
-
-        //do I need to add the data mean back?
-	        for( int j = 0; j < mean.length; j++ ) {
-	        	v.set(0,j,v.get(0,j)+mean[j]);
-	    	}
-        
-        return v.data;
-    }
-    */
-    
     /**
-     * Returns an eigen-vector from W. As this is a diagonal matrix, most values are 0, therefore only the numerical element is output, resulting in an array of size 1. NOTE: consider changing to allow the product of multiple eigenvectors to be returned, if requested.
+     * Returns an eigen-value from W. As this is a diagonal matrix, most values are 0, therefore only the numerical element is output. NOTE: consider changing to allow the product of multiple eigenvectors to be returned, if requested.
      *
-     * @param which Which component's vector is to be returned.
+     * @param which Which component's value is to be returned.
      * @return Vector from W.
      */
-    public double[] getW( int which ) {
+    public double getW( int which ) {
         if( which < 0 || which >= A.numCols )
             throw new IllegalArgumentException("Invalid vector");
     	
+        //IJ.log("which = "+Integer.toString(which));
+        //IJ.log("A numCols = "+Integer.toString(A.numCols));
+        //IJ.log("W numCols = "+Integer.toString(W.numCols));
         DMatrixRMaj w = new DMatrixRMaj(W.numRows, 1);
         CommonOps_DDRM.extract(W, which, which + 1, which, which + 1, w, 0, 0);  
         
-        return w.data;
+        //return w.data;
+        return w.get(0);
     }
     
 }

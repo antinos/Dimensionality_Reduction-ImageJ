@@ -1,12 +1,13 @@
-# Dimensionality Reduction (v1.0.6)
-*version release date:10/04/25*</br>
+# Dimensionality Reduction (v1.0.6b)
+*version release date:29/04/25*</br>
 
 This plugin captures data from an open image stack, folder of images, or an open results table and performs one of three dimensionality reduction techniques (PCA, t-SNE, or UMAP) to project the high-dimensional data into a lower dimensional (2D) space that is then plotted onto an ImageJ scatter-plot. Under-the-hood, the plugin uses two really-awesome libraries (t-SNE: Leif Jonsson's [pure Java implementation of Van Der Maaten and Hinton's t-sne clustering algorithm](https://github.com/lejon/T-SNE-Java); and UMAP: Jesse Paquette's (of [tag.bio](https://tag.bio/)) [Java implementation of UMAP](https://github.com/tag-bio/umap-java), based on the reference [Python implementation](https://github.com/lmcinnes/umap)). Both are distributed under open-source licences, so even if this plugin doesn't suit you, perhaps their libraries can find a place in your respective projects!<br/>
 
 The PCA implementation is from Peter Abeles' ([lessthanoptimal](https://github.com/lessthanoptimal)) [efficient java matrix library](https://github.com/lessthanoptimal/ejml). This ImageJ version allows specified principal component axes (e.g. PC-1 vs PC-5) to be plotted and displayed. A specified eigenvector (eigenface) can optionally be reconstructed into an image.
 
 From v1.0.3, an interactive scatter plot is output, in addition to the normal ImageJ plot, that allows easy view-toggling of data-clusters and the individual selection of graph points. Clicking on plot points will highlight the corresponding image in an image stack, which is nice for interrogating cluster members and outliers.
-v1.0.4 has added a lasso tool to the interactive plot for counting of multiple points within a selection area. In the future, this may be used for sub-level data analysis or labelling. 
+v1.0.4 added a lasso tool to the interactive plot for counting of multiple points within a selection area. In the future, this may be used for sub-level data analysis or labelling.
+v1.0.6b has added plot points re-colouring. Plot points can be re-coloured by a user specified principal component, accessed by right clicking on the Fx plot.
 
 An open results table to process can be named anything (it does not need to be the default 'Results' table), but must only contain numeric data. A label may be used to colour datapoints in the final DR plot, but must be selected separate from the table to process.
 
@@ -137,6 +138,7 @@ run("PCA", "pca_comp=10 pc_x=1 pc_y=5 eigen_out=1-10 mean_out label_path=[C:/Use
 * Right-clicking on the graph window will allow the user to copy an image of the plot to the clipboard or to save a fully interactive version of the plot to file.
 * Plot save and load functions are also available in the GUI dropdown menu: Plugins>Dimensionality Reduction>...
 * Dragging with the left mouse button will allow a freehand lasso selection area to be drawn. Visible datapoints will be automatically enumerated in this area.
+* **NEW:** Plot points can now be re-coloured by specified principal component (irrespective of which dimensionality reduction method was originally applied). This function is available from the right-click drop-down.
 
 <img src="src/main/resources/pics/Dimred_Lasso_Selection_Enumeration_And_Node_Stack_Relation.png" width="690" />
 

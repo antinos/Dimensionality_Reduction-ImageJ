@@ -4,12 +4,15 @@ import java.awt.Color;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.FutureTask;
 
 import javax.swing.JFrame;
 import javax.swing.SwingUtilities;
+
+import com.jujutsu.tsne.PrincipalComponentAnalysis;
 
 import dimred.Pca_;
 import dimred.Tsne_;
@@ -19,6 +22,8 @@ import ij.ImagePlus;
 import ij.ImageStack;
 import ij.WindowManager;
 import ij.measure.ResultsTable;
+import ij.measure.SplineFitter;
+import ij.process.LUT;
 import ij.text.TextWindow;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
@@ -37,6 +42,7 @@ import javafx.scene.chart.XYChart.Data;
 import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Label;
 import javafx.scene.control.MenuItem;
+import javafx.scene.control.TextInputDialog;
 import javafx.scene.image.WritableImage;
 import javafx.scene.input.Clipboard;
 import javafx.scene.input.ClipboardContent;
@@ -87,6 +93,9 @@ public class Fx_Scatter {
     private static double mouseStartY;
     private static int areaNodes;	//count of points within a lasso selection
     private static ArrayList<Integer> pointsInLasso = new ArrayList<Integer>();
+    private static boolean pcaComputed = false;
+    private static PrincipalComponentAnalysis pca;
+    private static boolean colourCanBeRestored = false; 
     
 	/** Constructs a new Fx_Plot with the default options.
 	 * Use addSeries(xvalues,yvalues, seriesName, seriesColour) to add data.
@@ -502,8 +511,14 @@ public class Fx_Scatter {
 	        	final ContextMenu contextMenu = new ContextMenu();
 	        	MenuItem copy = new MenuItem("Copy to clipboard");
 	        	MenuItem save = new MenuItem("Save interactive plot");
-	        	contextMenu.getItems().addAll(copy, save);
+	        	MenuItem recolour = new MenuItem("Recolour by principal component");
+	        	MenuItem restoreColour = new MenuItem("Restore colour");
+	        	
+	        	contextMenu.getItems().addAll(copy, save, recolour, restoreColour);
 	        	contextMenu.show(sc_Fx, e.getScreenX(), e.getScreenY());
+	        	if (!colourCanBeRestored) {
+	        		restoreColour.setDisable(true);
+	        	}
 	        	copy.setOnAction(new EventHandler<ActionEvent>() {
 	        		 public void handle(ActionEvent event) {
 		    	        	WritableImage image = scene.snapshot(null);
@@ -517,6 +532,33 @@ public class Fx_Scatter {
 	        		public void handle(ActionEvent event) {
 	    	        	SaveFxPlot savePlot = new SaveFxPlot();
 	    	        	savePlot.run(null);
+	        		}
+	        	});
+	        	recolour.setOnAction(new EventHandler<ActionEvent>() {
+	        		public void handle(ActionEvent event) {
+	        			//IJ.log("'Recolour by variable' was pressed.");
+	        			if (Pca_.lookupArray != null || Tsne_.lookupArray != null || Umap_.lookupArray != null) {
+	        				TextInputDialog dialog = new TextInputDialog("");
+	        				dialog.setTitle("Recolour plot points");
+	        				dialog.setHeaderText("Recolour by principal component");
+	        				dialog.setContentText("Principal component:");	
+	        				Optional<String> result = dialog.showAndWait();
+	        				if (result.isPresent()){
+	        					String num = result.get();
+	        					if (num.matches("\\d+") && Integer.valueOf(num) > 0) {
+	        						recolourByPC(Integer.valueOf(num));
+	        						restoreColour.setDisable(false);
+	        						colourCanBeRestored = true;
+	        					}
+	        				}
+	        			}
+	        		}
+	        	});
+	        	restoreColour.setOnAction(new EventHandler<ActionEvent>() {
+	        		public void handle(ActionEvent event) {
+	        			restoreColour();
+	        			restoreColour.setDisable(true);
+	        			colourCanBeRestored = false;
 	        		}
 	        	});
 	        	e.consume();
@@ -695,49 +737,246 @@ public class Fx_Scatter {
 
     }
     
-    /*
-    public String[] getLabels( String labelIndexPath) throws IOException {
-    	inputIndexPath = labelIndexPath;
-    	BufferedReader br = null;
-    	List<String> labelList = new ArrayList<String>();
+	/** Colours plot points across a range of values encompassing or spanning the provided double[] array.
+	 * @param inputValues	Array of doubles, used to define the colour range. Array size must equal the number of samples/stack-slices.
+	 * @param max			Optional maximum value to define the colour bit range.
+	 * @param red			Array of red pixel values to compose a LUT (along with green and blue). Should be the length of inputValues or the full 8-bit range (256). 
+	 * @param green			Array of green pixel values to compose a LUT (along with red and blue). Length as above.
+	 * @param blue			Array of blue pixel values to compose a LUT (along with red and green). Length as above.
+	 */
+    public void colourByVariable(double[] inputValues, double max, int[] red, int[] green, int[] blue) {
     	
-    	if (inputIndexPath.endsWith(".csv")) {
-    		try {
-    			String line = "";
-    			br = new BufferedReader(new FileReader(inputIndexPath));
-    			int lineCounter = 0;
-    			while ((line = br.readLine()) != null) {
-    				if (lineCounter == 0) {
-    					lineCounter++;
-    					continue;
-    				} else {
-    					lineCounter++;
-    					labelList.add(line.replaceAll(",", ""));
-    				}
-    				
-    			}
-    			} catch (FileNotFoundException e) {
-    			IJ.handleException(e);
-    			} catch (IOException e) {
-    			IJ.handleException(e);} finally {
-    				if (br != null) {
-    					try {
-    						br.close(); 
-    						} catch (IOException e) {
-    							IJ.handleException(e);
-    						}
-    				}
-    			}
+    	//LUT x = new LUT(8, 256, null, null, null); //bits(must be 8), size(<=256), byte[] byte[] byte[]
+    	
+    	// Info in below post not use here, but is an interesting way to access plot elements
+    	// https://stackoverflow.com/questions/39947456/how-to-change-point-size-in-scatter-chart
+    	
+    	if (inputValues.length != stackSize) {
+    		IJ.log("Cannot recolour the plot datapoints using the provided input values, as the input array length does not match the total number of plot points.");
     	} else {
-    		IJ.log("The user has specified a labels file but it is not a .csv.");
-    	}
-    	String[] labels = new String[labelList.size()];
-    	//IJ.log("labelList size is: "+String.valueOf(labelList.size()));
-    	labels = labelList.toArray(labels);
-    	//IJ.log("getLabels produces this: "+Arrays.toString(labels));
-    	//IJ.log("getLabels result contains "+String.valueOf((labels.length)+" elements"));
-    	inputIndexPath = null;
-    	return labels;
+    		
+    		if (red.length != 256) {
+    			//instead of breaking, perhaps attempt to scale red, green, and blue values to the correct index range.
+    			//transform all red values to span the inputValues range
+    			//use SplineFitter to interpolate values
+    			//SplineFitter sf = new SplineFitter(blue, blue, 0);
+    			IJ.log("Cannot recolour the plot datapoints, as 256 red values were not provided.");
+    		} else if (green.length != 256) {
+    			IJ.log("Cannot recolour the plot datapoints, as 256 green values were not provided.");
+    		} else if (blue.length != 256) {
+    			IJ.log("Cannot recolour the plot datapoints, as 256 blue values were not provided.");
+    		} else {
+				for (ScatterChart.Series<Number, Number> series : sc_Fx.getData()) {
+		        	for (Data<Number, Number> data : series.getData()) {
+		        		Color colour = new Color(red[0], green[0], blue[0]);
+		        		//sc_Fx.getData().indexOf(series);
+		        		//series.getData().indexOf(data);
+		        		String hex = "#"+Integer.toHexString(colour.getRGB()).substring(2);
+		        		Node node = data.getNode();
+		                node.setStyle("-fx-stroke: "+hex+"; -fx-fill:"+hex);
+		                //Region plotpoint = new Region();
+		                //plotpoint.setStyle("-fx-stroke: "+hex+"; -fx-fill:"+hex);
+		                //plotpoint.setShape(new Circle(0.5));
+		                //data.setNode(plotpoint);
+		        	}
+				}
+    		}
+    	}      
+                
     }
-    */
+    
+	/** Colours plot points across a range of values encompassing or spanning the provided double[] array.
+	 * @param inputValues	Array of doubles, used to define the colour range. Array size must equal the number of samples/stack-slices.
+	 * @param colour		The colour to apply to the inputValues.
+	 */
+    public static void colourByVariable(double[] inputValues, Color colour) {
+    	colourByVariable(inputValues, 0, colour);
+    }
+    
+	/** Colours plot points across a range of values encompassing or spanning the provided double[] array.
+	 * @param inputValues	Array of doubles, used to define the colour range. Array size must equal the number of samples/stack-slices.
+	 * @param max			Optional maximum value to define the colour bit range.
+	 * @param colour		The colour to apply to the inputValues.
+	 */
+    public static void colourByVariable(double[] inputValues, double max, Color colour) {
+    	
+    	if (inputValues.length != stackSize) {
+    		//NOTE: as of 27-04-25, DimRed variables are carrying over from previous plots in the same ImageJ session
+    		IJ.log("Cannot recolour the plot datapoints using the provided input values, as the input array length does not match the total number of plot points.");
+    	}
+    	
+    	Platform.runLater(new Runnable() {
+    		@Override
+	    	public void run() {
+    	    	int red = colour.getRed();
+    	    	int green = colour.getGreen();
+    	    	int blue = colour.getBlue();
+    	    	int maxVal = Math.max(Math.max(red, green), blue);
+    	    	double bitRatio = 255/maxVal;
+    	    	red = (int) Math.floor((double) red*bitRatio);
+    	    	green = (int) Math.floor((double) green*bitRatio);
+    	    	blue = (int) Math.floor((double) blue*bitRatio);
+    	    	
+    	    	double minInputVal = 0; //need to handle possible minus values.
+    	    	double maxInputVal = 0;
+    	    	for (int i = 0; i<inputValues.length; i++) {
+    	    		if (i == 0) {
+    	    			maxInputVal = inputValues[i];
+    	    			minInputVal = inputValues[i];
+    	    		}
+    	    		if (inputValues[i] > maxInputVal) {
+    	    			maxInputVal = inputValues[i];
+    	    		}
+    	    		if (inputValues[i] < minInputVal) {
+    	    			minInputVal = inputValues[i];
+    	    		}
+    	    	}
+    	    	bitRatio = 255/(maxInputVal-minInputVal);
+    	    	for (int i = 0; i<inputValues.length; i++) {
+    	    		inputValues[i] = inputValues[i]-minInputVal; //linear transformation of data to make the minimum value = 0.
+    	    		inputValues[i] = Math.floor(inputValues[i]*bitRatio); //scale all data to make maximum value = 255.
+    	    		inputValues[i] = inputValues[i]/255; //scale all data between 0 and 1.
+    	    	}
+    	    	
+    	    	
+    			for (ScatterChart.Series<Number, Number> series : sc_Fx.getData()) {
+    	        	for (Data<Number, Number> data : series.getData()) {
+    	        		int lookup = lookupArray[sc_Fx.getData().indexOf(series)][series.getData().indexOf(data)];
+    	        		double scaledInputVal = inputValues[lookup-1];
+    	        		int nodeRed = (int) Math.floor(red*scaledInputVal);
+    	        		int nodeGreen = (int) Math.floor(green*scaledInputVal);
+    	        		int nodeBlue = (int) Math.floor(blue*scaledInputVal);
+    	        		Color nodeColour = new Color(nodeRed, nodeGreen, nodeBlue);
+    	        		String hex = "#"+Integer.toHexString(nodeColour.getRGB()).substring(2);
+    	                Node node = data.getNode();
+    	                node.setStyle("-fx-stroke: "+hex+"; -fx-fill:"+hex);
+    	                //Region plotpoint = new Region();
+    	                //plotpoint.setStyle("-fx-stroke: "+hex+"; -fx-fill:"+hex);
+    	                //plotpoint.setShape(new Circle(0.5));
+    	                //data.setNode(plotpoint);
+    	        	}
+    			}
+    		}
+		});
+    	
+    	/*
+    	int red = colour.getRed(); //125 example numbers
+    	int green = colour.getGreen(); //0 
+    	int blue = colour.getBlue(); //0
+    	int maxVal = Math.max(Math.max(red, green), blue);
+    	double bitRatio = 255/maxVal; //2.04
+    	red = (int) Math.floor((double) red*bitRatio); //255
+    	green = (int) Math.floor((double) green*bitRatio); //0
+    	blue = (int) Math.floor((double) blue*bitRatio); //0
+    	
+    	double minInputVal = 0; //need to handle possible minus values.
+    	double maxInputVal = 0;
+    	for (int i = 0; i<inputValues.length; i++) {
+    		if (i == 0) {
+    			maxInputVal = inputValues[i];
+    			minInputVal = inputValues[i];
+    		}
+    		if (inputValues[i] > maxInputVal) {
+    			maxInputVal = inputValues[i];
+    		}
+    		if (inputValues[i] < minInputVal) {
+    			minInputVal = inputValues[i];
+    		}
+    	}
+    	bitRatio = 255/(maxInputVal-minInputVal);
+    	for (int i = 0; i<inputValues.length; i++) {
+    		inputValues[i] = inputValues[i]-minInputVal; //linear transformation of data to make the minimum value = 0.
+    		inputValues[i] = Math.floor(inputValues[i]*bitRatio); //scale all data to make maximum value = 255.
+    	}
+    	
+    	
+		for (ScatterChart.Series<Number, Number> series : sc_Fx.getData()) {
+        	for (Data<Number, Number> data : series.getData()) {
+        		int lookup = lookupArray[sc_Fx.getData().indexOf(series)][series.getData().indexOf(data)];
+        		int scaledInputVal = (int) inputValues[lookup];
+        		int nodeRed = (red/red)*scaledInputVal;
+        		int nodeGreen = (green/green)*scaledInputVal;
+        		int nodeBlue = (blue/blue)*scaledInputVal;
+        		Color nodeColour = new Color(nodeRed, nodeGreen, nodeBlue);
+        		String hex = "#"+Integer.toHexString(nodeColour.getRGB()).substring(2);
+                Node node = data.getNode();
+                node.setStyle("-fx-stroke: "+hex+"; -fx-fill:"+hex);
+                //Region plotpoint = new Region();
+                //plotpoint.setStyle("-fx-stroke: "+hex+"; -fx-fill:"+hex);
+                //plotpoint.setShape(new Circle(0.5));
+                //data.setNode(plotpoint);
+        	}
+		}
+                
+        */        
+    }
+    
+	/** Recolour the plot using a specified principal component.
+	 * @param pc		The principal component to use.
+	 */
+	public static void recolourByPC(int pc) {
+		
+		if (Pca_.lookupArray != null) {
+	    	int maxVal = Pca_.imageMatrix[0].length;
+	    	if (stackSize < maxVal) {
+	    		maxVal = stackSize;
+	    	}
+			if (pc <= maxVal) {
+				//PCA already computed so just fetch the correct component
+				colourByVariable(Pca_.pca.getU(pc-1), Color.RED);
+			}
+		} else if (Tsne_.lookupArray != null) {
+	    	int maxVal = Tsne_.imageMatrix[0].length;
+	    	if (stackSize < maxVal) {
+	    		maxVal = stackSize;
+	    	}
+			if (pc <= maxVal) {
+				//compute PCA
+				if (!pcaComputed) { //check to see if PCA has already been computed. We only need to do it once.
+					IJ.log("PCA is being computed to facilitate the user request. For large input data this can take a while.");
+					pca = new PrincipalComponentAnalysis();
+					pca.setup(stackSize, Tsne_.imageMatrix[0].length);
+					for (int p = 0; p < stackSize; p++) {
+						pca.addSample(Tsne_.imageMatrix[p]);
+					}
+					pca.computeBasis(pc);	
+					pcaComputed = true;
+				}
+				colourByVariable(pca.getU(pc-1), Color.RED);
+			}
+		} else if (Umap_.lookupArray != null) {
+	    	int maxVal = Umap_.imageMatrix[0].length;
+	    	if (stackSize < maxVal) {
+	    		maxVal = stackSize;
+	    	}
+			if (pc <= maxVal) {
+				//compute PCA
+				if (!pcaComputed) { //check to see if PCA has already been computed. We only need to do it once.
+					IJ.log("PCA is being computed to facilitate the user request. For large input data this can take a while.");
+					pca = new PrincipalComponentAnalysis();
+					pca.setup(stackSize, Umap_.imageMatrix[0].length);
+					for (int p = 0; p < stackSize; p++) {
+						pca.addSample(Umap_.imageMatrix[p]);
+					}
+					pca.computeBasis(pc+1);
+					pcaComputed = true;
+				}
+				colourByVariable(pca.getU(pc-1), Color.RED);
+			}
+		}
+    }
+	
+	/** Restore plot points colour back to original.
+	 */
+	public static void restoreColour() {
+		
+		for (ScatterChart.Series<Number, Number> series : sc_Fx.getData()) {
+        	for (Data<Number, Number> data : series.getData()) {
+        		String hex = "#"+Integer.toHexString(groupColoursList.get(sc_Fx.getData().indexOf(series)).getRGB()).substring(2);
+                Node node = data.getNode();
+                node.setStyle("-fx-stroke: "+hex+"; -fx-fill:"+hex);
+        	}
+		}
+    }
+	
 }

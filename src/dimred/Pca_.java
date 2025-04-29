@@ -36,9 +36,9 @@ public class Pca_ implements PlugIn {
 	int choice; //JOption 'process the image stack?' choice outcome
 	public static boolean processingTable = false;
 	public static ImagePlus stack;
-	PrincipalComponentAnalysis pca = new PrincipalComponentAnalysis();
+	public static PrincipalComponentAnalysis pca = new PrincipalComponentAnalysis();
 	public static boolean processingStack = false;
-	double[][] imageMatrix;
+	public static double[][] imageMatrix;
 	String[] Filelist;
 	public static String[] labelsArray;
 	public static String[] uniqueArray;
@@ -79,6 +79,7 @@ public class Pca_ implements PlugIn {
 	private boolean suppressFx = false;
 	private boolean suppressPlot = false;
 	private boolean mean_out = false;
+	private String colourBy; //accepts pc_1, pc_2, ... pc_n (principal component x); var_1, var_2. ... var_n (variable x);
     //private boolean logTransform = false;
     //private boolean cenAndScale = false;
 	
@@ -114,7 +115,7 @@ public class Pca_ implements PlugIn {
 		
 		if (WindowManager.getActiveTable() != null && WindowManager.getActiveTable() instanceof TextWindow) {
 			if (!suppressStackAsk) {
-				choice = JOptionPane.showConfirmDialog(null, "Do you want to process the open table?", "UMAP option",JOptionPane.YES_NO_CANCEL_OPTION);
+				choice = JOptionPane.showConfirmDialog(null, "Do you want to process the open table?", "Pca option",JOptionPane.YES_NO_CANCEL_OPTION);
 		} else {
 			choice = JOptionPane.OK_OPTION;
 		}
@@ -190,15 +191,9 @@ public class Pca_ implements PlugIn {
 				imageMatrix[s][l] = image1DArray[l];
 			}
 		}
-		double[][] temp2 = new double[imageMatrix.length][imageMatrix[0].length];
-		for (int i=0; i<imageMatrix.length; i++) {
-			for (int j=0; j<imageMatrix[0].length; j++) {
-				temp2[i][j] = imageMatrix[i][j];	
-			}
-		}
 		pca.setup(stack.getStackSize(), (width*height));
 		for (int p = 0; p < stack.getStackSize(); p++) {
-			pca.addSample(temp2[p]);
+			pca.addSample(imageMatrix[p]);
 		}
 		//stack.close();
 			stack.setSlice(0);
@@ -471,7 +466,7 @@ public class Pca_ implements PlugIn {
 			    	}
 			    	if (!suppressFx) {
 			    		Fx_plot = new Fx_Scatter("PCA output", "PC "+ Integer.toString(pcompX), "PC " + Integer.toString(pcompY));
-			groupLabel = "Non-coloured data";
+			groupLabel = "All data";
 				Fx_plot.addSeries(Pcomp1, Pcomp2, groupLabel, Color.BLACK);
 			}
 			if (!suppressPlot) {
@@ -575,6 +570,40 @@ public class Pca_ implements PlugIn {
 		 
 		processingStack = false;
 		processingTable = false;
+		
+		//if requested, colour datapoints of the fx_plot by principal component or variable
+		if (!colourBy.isEmpty() && colourBy != null) {
+			if (colourBy.contains("pc_")) {
+				if (colourBy.substring(3).matches("\\d+")) {
+			    	int maxVal = imageMatrix[0].length;
+			    	if (Filelist.length < maxVal) {
+			    		maxVal = Filelist.length;
+			    	}
+					int pc = Integer.valueOf(colourBy.substring(3));
+					if (pc <= maxVal) {
+						Fx_plot.colourByVariable(pca.getU(pc-1), Color.RED);
+					}
+				} else {
+					IJ.log("colour_by argument should match 'pc_x'. For example colour_by=pc_3 .");
+				}
+			} else if (colourBy.contains("var_")) {
+				if (colourBy.substring(4).matches("\\d+")) {
+					int maxVal = imageMatrix[0].length;
+					int var = Integer.valueOf(colourBy.substring(4));
+					if (var <= maxVal) {
+						double[] variableArray = new double[Filelist.length];
+						for (int i = 0; i < variableArray.length; i++) {
+							variableArray[i] = imageMatrix[i][var-1];
+						}
+						Fx_plot.colourByVariable(variableArray, Color.RED);
+					}
+				} else {
+					IJ.log("colour_by argument should match 'var_x'. For example colour_by=var_10 .");
+				}
+			}
+		}
+		
+		
 	}
 	
     public String[] getLabels( String labelIndexPath) throws IOException {
@@ -720,6 +749,9 @@ public class Pca_ implements PlugIn {
         
         // Suppress the creation of the default ImageJ plot
         suppressPlot = optionsStr.contains("no_plot");
+        
+        // Colour the plot datapoints by a user specified variable.
+        colourBy = Macro.getValue(optionsStr, "colour_by", "");
 
     }
     
