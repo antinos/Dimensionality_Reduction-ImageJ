@@ -14,7 +14,8 @@ An open results table to process can be named anything (it does not need to be t
 ---
 ## Using the 'Dimensionality Reduction' plugin on an image stack or folder of images
 
-**[Youtube tutorial](https://www.youtube.com/watch?v=p90ZYCsKdtw)**
+**[Youtube tutorial](https://www.youtube.com/watch?v=p90ZYCsKdtw)** </br>
+**[Youtube tutorial 2](https://www.youtube.com/watch?v=1-vP14HgJrg)** Showcasing newer plugin features up to v1.0.6. (sorry for bad audio).
 
 The plugin can be called from a GUI dropdown 'Plugins>Dimensionality Reduction>...'</br>
 <img src="src/main/resources/pics/DimRed_GUI_access-dropdown.png" width="350" />
